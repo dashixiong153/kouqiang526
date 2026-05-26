@@ -1,0 +1,2278 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>广西医科大学口腔医学院临床案例思维训练 AI 助手</title>
+  <style>
+    :root {
+      --ink: #18232f;
+      --muted: #647181;
+      --line: #dbe2ea;
+      --paper: #f7f9fb;
+      --panel: #ffffff;
+      --brand: #0f766e;
+      --brand-deep: #0b4f4a;
+      --accent: #b45309;
+      --blue: #2563eb;
+      --danger: #b42318;
+      --ok: #15803d;
+      --shadow: 0 16px 40px rgba(24, 35, 47, .08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(180deg, #eef7f6 0%, #f7f9fb 34%, #f3f6f8 100%);
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, sans-serif;
+      line-height: 1.5;
+    }
+
+    button, input, textarea, select { font: inherit; }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+    }
+
+    aside {
+      background:
+        linear-gradient(180deg, #0d3a40 0%, #12333f 52%, #112936 100%);
+      color: #eef7f8;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      box-shadow: 12px 0 34px rgba(17, 41, 54, .12);
+    }
+
+    .brand-block {
+      padding-bottom: 18px;
+      border-bottom: 1px solid rgba(255,255,255,.16);
+    }
+
+    .brand-block h1 {
+      margin: 0 0 8px;
+      font-size: 21px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    .brand-block p {
+      margin: 0;
+      color: #b9d3d8;
+      font-size: 13px;
+    }
+
+    .nav {
+      display: grid;
+      gap: 8px;
+    }
+
+    .nav button {
+      border: 0;
+      border-radius: 8px;
+      background: rgba(255,255,255,.08);
+      color: #eef7f8;
+      padding: 11px 12px;
+      text-align: left;
+      cursor: pointer;
+      min-height: 44px;
+    }
+
+    .nav button.active,
+    .nav button:hover {
+      background: #e6fffb;
+      color: #083b38;
+    }
+
+    .side-note {
+      margin-top: auto;
+      color: #b9d3d8;
+      font-size: 12px;
+      border-top: 1px solid rgba(255,255,255,.16);
+      padding-top: 14px;
+    }
+
+    main {
+      min-width: 0;
+      padding: 24px;
+      max-width: 1600px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+      padding: 18px 20px;
+      background: rgba(255, 255, 255, .78);
+      border: 1px solid rgba(219, 226, 234, .88);
+      border-radius: 8px;
+      box-shadow: 0 14px 34px rgba(24, 35, 47, .06);
+      backdrop-filter: blur(12px);
+    }
+
+    .topbar h2 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 0;
+    }
+
+    .tag-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      color: #17424c;
+      background: #dff7f3;
+      border: 1px solid #bce7df;
+      font-size: 12px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(320px, .65fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 18px 42px rgba(24, 35, 47, .07);
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbfc 100%);
+    }
+
+    .panel-head h3 {
+      margin: 0;
+      font-size: 17px;
+      letter-spacing: 0;
+    }
+
+    .panel-body { padding: 18px; }
+
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .choice {
+      min-height: 92px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, #ffffff 0%, #f9fcfc 100%);
+      padding: 12px;
+      text-align: left;
+      cursor: pointer;
+      transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+    }
+
+    .choice:hover {
+      border-color: var(--brand);
+      box-shadow: 0 8px 24px rgba(15,118,110,.12);
+      transform: translateY(-1px);
+    }
+
+    .choice b {
+      display: block;
+      color: var(--brand-deep);
+      font-size: 21px;
+      margin-bottom: 5px;
+    }
+
+    .choice span {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .chat {
+      height: 560px;
+      overflow: auto;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background:
+        linear-gradient(180deg, #fbfdfe 0%, #f5f9fa 100%);
+    }
+
+    .msg {
+      max-width: 86%;
+      padding: 13px 14px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      border: 1px solid var(--line);
+    }
+
+    .msg.assistant {
+      align-self: flex-start;
+      background: #ffffff;
+      box-shadow: 0 8px 22px rgba(24, 35, 47, .05);
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: #e8f7f4;
+      border-color: #bfe8df;
+    }
+
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .case-img {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #eef2f5;
+      cursor: zoom-in;
+    }
+
+    .chat-form {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      padding: 12px;
+      border-top: 1px solid var(--line);
+      background: #fff;
+    }
+
+    textarea {
+      min-height: 48px;
+      max-height: 132px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      color: var(--ink);
+    }
+
+    .btn {
+      border: 1px solid transparent;
+      border-radius: 8px;
+      padding: 10px 14px;
+      min-height: 40px;
+      cursor: pointer;
+      color: #fff;
+      background: var(--brand);
+    }
+
+    .btn:hover { background: var(--brand-deep); }
+    .btn.secondary { color: var(--ink); background: #fff; border-color: var(--line); }
+    .btn.secondary:hover { background: #eef6f5; }
+    .btn.warn { background: var(--accent); }
+
+    .stack { display: grid; gap: 12px; }
+
+    .digital-human {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .human-stage {
+      display: grid;
+      grid-template-columns: 96px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+    }
+
+    .avatar-wrap {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      background: #dff7f3;
+      border: 2px solid #bce7df;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .avatar-wrap.listening {
+      box-shadow: 0 0 0 6px rgba(37, 99, 235, .12);
+    }
+
+    .avatar-wrap.speaking {
+      animation: pulseAvatar 1.2s ease-in-out infinite;
+    }
+
+    .avatar-wrap img {
+      width: 112%;
+      height: 112%;
+      object-fit: cover;
+      object-position: center 18%;
+    }
+
+    @keyframes pulseAvatar {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.035); }
+    }
+
+    .human-name {
+      font-weight: 700;
+      color: var(--brand-deep);
+      margin-bottom: 4px;
+    }
+
+    .voice-status {
+      color: var(--muted);
+      font-size: 13px;
+      min-height: 20px;
+    }
+
+    .voice-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .voice-select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      min-height: 38px;
+      padding: 8px 10px;
+      color: var(--ink);
+      background: #fff;
+    }
+
+    .icon-btn {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      min-height: 38px;
+      padding: 8px 10px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .icon-btn.active {
+      background: #e6fffb;
+      border-color: var(--brand);
+      color: var(--brand-deep);
+      font-weight: 700;
+    }
+
+    .icon-btn:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .metric b {
+      display: block;
+      font-size: 22px;
+      color: var(--brand-deep);
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .step-list {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .step-list li {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: #fff;
+      font-size: 13px;
+    }
+
+    .step-list li.current {
+      border-color: var(--brand);
+      background: #edfdf9;
+      color: var(--brand-deep);
+      font-weight: 700;
+    }
+
+    .auth-box {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 14px;
+      background: #f8fbfc;
+      display: grid;
+      gap: 10px;
+    }
+
+    .auth-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .teacher-auth-row {
+      grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
+    }
+
+    .auth-row input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px 10px;
+      min-height: 40px;
+    }
+
+    .auth-status {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .privacy-consent {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      color: #405263;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .privacy-consent input {
+      margin-top: 3px;
+      flex: 0 0 auto;
+    }
+
+    .upload-strip {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      padding: 12px;
+      border: 1px dashed #a9cfc9;
+      border-radius: 8px;
+      background: #f5fbfa;
+      margin: 12px 0;
+    }
+
+    .upload-strip strong {
+      color: var(--brand-deep);
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .upload-strip span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .upload-preview {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .upload-preview img {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #eef2f5;
+    }
+
+    .hidden { display: none !important; }
+
+    .quiz-shell {
+      display: grid;
+      grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr);
+      gap: 18px;
+    }
+
+    .quiz-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fff;
+    }
+
+    .options {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .option {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      cursor: pointer;
+    }
+
+    .option:hover { border-color: var(--blue); }
+
+    .answer-box {
+      width: 100%;
+      min-height: 150px;
+      margin-top: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: #314353;
+      background: #f2f6f8;
+      font-weight: 700;
+    }
+
+    .filters {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .filters input,
+    .filters select {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px 10px;
+      min-height: 40px;
+    }
+
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 19, 28, .78);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 10;
+    }
+
+    .lightbox.open { display: flex; }
+
+    .lightbox img {
+      max-width: 92vw;
+      max-height: 88vh;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .notice {
+      border-left: 4px solid var(--brand);
+      background: #eefbf8;
+      padding: 12px 14px;
+      border-radius: 6px;
+      color: #134e4a;
+      font-size: 13px;
+    }
+
+    .chart-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+    }
+
+    .chart-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fff;
+    }
+
+    .chart-card h4 {
+      margin: 0 0 12px;
+      font-size: 15px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 110px minmax(0, 1fr) 42px;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0;
+      font-size: 12px;
+    }
+
+    .bar-track {
+      height: 10px;
+      background: #eef2f5;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background: var(--brand);
+      border-radius: 999px;
+    }
+
+    .danger-text { color: var(--danger); }
+    .ok-text { color: var(--ok); }
+
+    @media (max-width: 1100px) {
+      .app { grid-template-columns: 1fr; }
+      aside { position: static; }
+      .grid, .quiz-shell, .chart-grid { grid-template-columns: 1fr; }
+      .menu-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .chat { height: 500px; }
+    }
+
+    @media (max-width: 640px) {
+      main { padding: 14px; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .menu-grid, .metric-grid { grid-template-columns: 1fr; }
+      .msg { max-width: 100%; }
+      .chat-form { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="brand-block">
+        <h1>广西医科大学口腔医学院</h1>
+        <p>口腔临床案例思维训练专业 AI 网页助手</p>
+      </div>
+      <nav class="nav" aria-label="主导航">
+        <button class="active" data-view="student">学生训练</button>
+        <button data-view="quiz">课前/课后测试</button>
+        <button data-view="teacher">教师学情</button>
+      </nav>
+      <div class="side-note">
+        第 5 阶段：临床思维培养。面向口腔专业学生的临床推理、阅片训练与学情反馈平台。
+      </div>
+    </aside>
+
+    <main>
+      <section id="studentView">
+        <div class="topbar">
+          <div>
+            <h2>临床案例思维训练</h2>
+            <div class="tag-row">
+              <span class="tag">主诉解析</span>
+              <span class="tag">阶梯式问诊</span>
+              <span class="tag">黏膜病阅片</span>
+              <span class="tag">知识库带图病例</span>
+            </div>
+          </div>
+          <button class="btn secondary" id="resetBtn">返回主菜单</button>
+        </div>
+
+        <div class="grid">
+          <section class="panel">
+            <div class="panel-head">
+              <h3>学生端对话训练</h3>
+              <span id="flowBadge" class="tag">主菜单状态</span>
+            </div>
+            <div class="panel-body">
+              <div class="auth-box" id="studentAuthBox">
+                <div class="auth-row">
+                  <label>学生学号
+                    <input id="studentLoginId" autocomplete="username" placeholder="请输入学号后开始训练" />
+                  </label>
+                  <button class="btn" id="studentLoginBtn" type="button">登录</button>
+                </div>
+                <label class="privacy-consent">
+                  <input id="privacyConsent" type="checkbox" />
+                  <span>我已知晓：学号仅用于本课程训练记录、测试统计和教师学习反馈，不采集身份证号、手机号等非必要信息。</span>
+                </label>
+                <div class="auth-status" id="studentAuthStatus">未登录：请先输入学号，登录后才能作答。</div>
+              </div>
+              <div class="menu-grid" id="menuGrid">
+                <button class="choice" data-pick="1"><b>1</b><span>AI 原创随机病例训练</span></button>
+                <button class="choice" data-pick="2"><b>2</b><span>学生自带病例分析</span></button>
+                <button class="choice" data-pick="3"><b>3</b><span>专项知识点巩固</span></button>
+                <button class="choice" data-pick="4"><b>4</b><span>口腔黏膜病多模态阅片</span></button>
+                <button class="choice" data-pick="5"><b>5</b><span>知识库带图病例训练</span></button>
+              </div>
+              <div class="upload-strip" id="imageUploadStrip">
+                <div>
+                  <strong>图片训练素材</strong>
+                  <span>支持上传口腔黏膜临床图或病理切片图，流程 4 将引导阅片分析。</span>
+                </div>
+                <div>
+                  <input id="caseImageInput" type="file" accept="image/*" multiple />
+                </div>
+              </div>
+              <div class="upload-preview" id="uploadPreview"></div>
+              <div class="chat" id="chat" aria-live="polite"></div>
+              <form class="chat-form" id="chatForm">
+                <textarea id="studentInput" placeholder="请输入 1-5 选择流程，或继续回答当前训练步骤"></textarea>
+                <button class="btn" type="submit">发送</button>
+              </form>
+            </div>
+          </section>
+
+          <aside class="panel" aria-label="训练状态">
+            <div class="panel-head">
+              <h3>训练进度</h3>
+            </div>
+            <div class="panel-body stack">
+              <div class="digital-human">
+                <div class="human-stage">
+                  <div class="avatar-wrap" id="avatarWrap">
+                    <img src="assets/digital-human/cartoon-dentist.png" alt="卡通口腔医生数字人" />
+                  </div>
+                  <div>
+                    <div class="human-name">口腔思维导师</div>
+                    <div class="voice-status" id="voiceStatus">语音待机</div>
+                  </div>
+                </div>
+                <div class="voice-controls">
+                  <button class="icon-btn" id="voiceInputBtn" type="button" title="语音输入">🎙 语音输入</button>
+                  <button class="icon-btn" id="voiceReadBtn" type="button" title="朗读助手回复">🔊 朗读回复</button>
+                  <button class="icon-btn" id="stopVoiceBtn" type="button" title="停止语音">■ 停止</button>
+                  <select class="voice-select" id="voiceSelect" aria-label="选择朗读音色">
+                    <option value="">自动选择中文男声</option>
+                  </select>
+                </div>
+              </div>
+              <div class="metric-grid">
+                <div class="metric"><b id="caseCount">0</b><span>已完成训练</span></div>
+                <div class="metric"><b id="avgScore">0%</b><span>平均正确率</span></div>
+                <div class="metric"><b id="nextDifficulty">初级</b><span>推荐案例难度</span></div>
+                <div class="metric"><b id="currentDifficulty">未开始</b><span>当前案例难度</span></div>
+              </div>
+              <div class="notice">
+                知识库带图病例仅在流程 5 启用，初始阶段只展示临床外观图；病理、随访和治疗图需按训练步骤逐步释放。
+              </div>
+              <ol class="step-list" id="stepList"></ol>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="quizView" class="hidden">
+        <div class="topbar">
+          <div>
+            <h2>课前与课后测试</h2>
+            <div class="tag-row">
+              <span class="tag">课程题库</span>
+              <span class="tag">斑纹类疾病专题</span>
+            </div>
+          </div>
+        </div>
+        <div class="quiz-shell">
+          <section class="panel">
+            <div class="panel-head">
+              <h3>开始测试</h3>
+            </div>
+            <div class="panel-body stack">
+              <div class="notice" id="quizLoginNotice">请先在“学生训练”页输入学号登录，登录后才能开始测试。</div>
+              <label>测试类型
+                <select id="quizType" style="width:100%; margin-top:8px;">
+                  <option value="课前测试">课前测试</option>
+                  <option value="课后测试">课后测试</option>
+                </select>
+              </label>
+              <label>题型
+                <select id="quizMode" style="width:100%; margin-top:8px;">
+                  <option value="mixed">随机混合</option>
+                  <option value="choice">随机选择题</option>
+                  <option value="short">随机问答题</option>
+                </select>
+              </label>
+              <button class="btn" id="startQuizBtn">随机抽题</button>
+              <div class="notice">每次抽取 5 题。选择题自动判分，问答题按关键词给出参考评分，教师端可查看作答详情。</div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h3>答题区</h3>
+              <span id="quizProgress" class="tag">未开始</span>
+            </div>
+            <div class="panel-body">
+              <div id="quizBox" class="stack"></div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="teacherView" class="hidden">
+        <section class="panel" id="teacherLoginPanel">
+          <div class="panel-head">
+            <h3>教师端登录</h3>
+          </div>
+          <div class="panel-body stack">
+            <div class="auth-row teacher-auth-row">
+              <label>账号
+                <input id="teacherAccount" autocomplete="username" placeholder="请输入教师账号" />
+              </label>
+              <label>密码
+                <input id="teacherPassword" type="password" autocomplete="current-password" placeholder="请输入密码" />
+              </label>
+              <button class="btn" id="teacherLoginBtn" type="button">登录</button>
+            </div>
+            <div class="auth-status" id="teacherAuthStatus">未登录：请先完成教师身份验证。</div>
+          </div>
+        </section>
+        <div id="teacherContent" class="hidden">
+        <div class="topbar">
+          <div>
+            <h2>教师学情统计</h2>
+            <div class="tag-row">
+              <span class="tag">学生训练记录</span>
+              <span class="tag">测验作答详情</span>
+              <span class="tag">薄弱知识点</span>
+            </div>
+          </div>
+          <button class="btn warn" id="seedDemoBtn">生成演示数据</button>
+        </div>
+        <section class="panel">
+          <div class="panel-head">
+            <h3>班级概览</h3>
+          </div>
+          <div class="panel-body stack">
+            <div class="metric-grid">
+              <div class="metric"><b id="teacherStudents">0</b><span>学生数</span></div>
+              <div class="metric"><b id="teacherSessions">0</b><span>训练/测试次数</span></div>
+              <div class="metric"><b id="teacherAccuracy">0%</b><span>平均正确率</span></div>
+              <div class="metric"><b id="teacherWeak">暂无</b><span>高频薄弱模块</span></div>
+            </div>
+            <div class="chart-grid">
+              <div class="chart-card">
+                <h4>薄弱模块 Top 6</h4>
+                <div id="weakChart"></div>
+              </div>
+              <div class="chart-card">
+                <h4>训练难度分布</h4>
+                <div id="difficultyChart"></div>
+              </div>
+            </div>
+            <div class="filters">
+              <input id="filterStudent" placeholder="按学生筛选" />
+              <select id="filterType">
+                <option value="">全部类型</option>
+                <option value="训练">训练</option>
+                <option value="课前测试">课前测试</option>
+                <option value="课后测试">课后测试</option>
+              </select>
+              <button class="btn secondary" id="clearDataBtn">清空本机记录</button>
+            </div>
+            <div style="overflow:auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>时间</th>
+                    <th>学生</th>
+                    <th>类型</th>
+                    <th>病例/题组</th>
+                    <th>正确率</th>
+                    <th>薄弱知识点</th>
+                    <th>作答摘要</th>
+                  </tr>
+                </thead>
+                <tbody id="recordTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true">
+    <img id="lightboxImg" alt="病例图片放大预览" />
+  </div>
+
+  <script>
+    const FLOWS = {
+      none: "主菜单状态",
+      flow_1: "流程 1：AI 原创随机病例训练",
+      flow_2: "流程 2：学生自带病例分析",
+      flow_3: "流程 3：专项知识点巩固",
+      flow_4: "流程 4：口腔黏膜病多模态阅片训练",
+      flow_5: "流程 5：知识库带图病例训练"
+    };
+
+    const steps = [
+      "第 1 步：主诉解析训练",
+      "第 1.5 步：图片解读训练",
+      "第 2 步：现病史梳理训练",
+      "第 3 步：口腔检查设计训练",
+      "第 4 步：辅助检查设计训练",
+      "第 5 步：初步诊断推导训练",
+      "第 6 步：鉴别诊断训练",
+      "第 7 步：治疗方案设计训练",
+      "第 8 步：预后分析与患者教育"
+    ];
+
+    const kbCases = [
+      {
+        id: "GXMU-KQ-KB-LP-001",
+        source: "口腔医学知识库病例",
+        category: "口腔黏膜病学",
+        name: "双颊糜烂型口腔扁平苔藓",
+        basic: "男，37岁；无特殊全身疾病史；既往吸烟10余年，已戒烟。",
+        chief: "双颊反复溃烂疼痛2周余",
+        history: "2周前开始双颊反复溃烂疼痛，进食刺激性食物时疼痛明显，曾于外院诊治，具体不详。",
+        exam: "双颊黏膜可见白色网状或树枝状条纹，局部伴充血、糜烂，触痛阳性。",
+        auxiliary: "必要时可行活检及真菌检查；病理可见基底细胞液化变性及固有层淋巴细胞带状浸润。",
+        diagnosis: "口腔扁平苔藓，糜烂型",
+        differentials: "白斑、慢性盘状红斑狼疮、念珠菌感染、苔藓样反应。",
+        treatment: "去除刺激因素，局部抗炎止痛，必要时短程糖皮质激素，控制感染并规律随访。",
+        initialImages: ["image1.jpeg","image2.jpeg","image3.jpeg","image4.jpeg","image5.jpeg","image6.jpeg","image7.jpeg"].map(n => "assets/kb/lichen_planus/" + n),
+        followImages: ["image10.jpeg","image11.jpeg","image12.jpeg","image13.jpeg","image14.jpeg","image15.jpeg"].map(n => "assets/kb/lichen_planus/" + n)
+      },
+      {
+        id: "GXMU-KQ-KB-LP-002",
+        source: "口腔医学知识库病例",
+        category: "口腔黏膜病学",
+        name: "口腔疼痛伴黏膜糜烂",
+        basic: "女，55岁；既往史、家族史及全身情况无特殊。",
+        chief: "口腔疼痛1月余",
+        history: "1月前开始口腔黏膜反复溃烂疼痛，进食时疼痛明显，曾于外院诊治，具体不详。",
+        exam: "口腔黏膜可见白色条纹和糜烂面，局部充血，刺激痛明显。",
+        auxiliary: "可根据病损范围选择活检、真菌涂片及血糖等基础检查。",
+        diagnosis: "口腔扁平苔藓待诊，需结合病理排除其他白色病损。",
+        differentials: "白斑、红斑、慢性盘状红斑狼疮、黏膜类天疱疮。",
+        treatment: "控制疼痛与炎症，去除局部刺激，必要时病理确诊并制定长期随访计划。",
+        initialImages: ["image16.jpeg","image17.jpeg","image18.jpeg","image19.jpeg"].map(n => "assets/kb/lichen_planus/" + n),
+        followImages: []
+      },
+      {
+        id: "GXMU-KQ-KB-LP-003",
+        source: "口腔医学知识库病例",
+        category: "口腔黏膜病学",
+        name: "颊侧白纹非糜烂型病例",
+        basic: "女，39岁；既往史、家族史及全身情况无特殊。",
+        chief: "发现颊侧白纹半年",
+        history: "半年前开始发现颊侧白纹，无疼痛，略有粗糙感，未治疗。",
+        exam: "颊黏膜可见珠光白色网状条纹，不明显突起于黏膜表面，周围黏膜基本正常。",
+        auxiliary: "非糜烂型可先随访观察；如形态改变、溃疡或诊断不明，应行活检。",
+        diagnosis: "口腔扁平苔藓，非糜烂型",
+        differentials: "白斑、白色角化症、白色海绵状斑痣。",
+        treatment: "解释病情，避免刺激因素，定期随访；症状明显时局部用药。",
+        initialImages: ["assets/kb/lichen_planus/image20.png"],
+        followImages: []
+      },
+      {
+        id: "GXMU-KQ-KB-LP-005",
+        source: "口腔医学知识库病例",
+        category: "口腔黏膜病学",
+        name: "双颊及舌部白色病损伴疼痛",
+        basic: "患者全身情况无特殊记录。",
+        chief: "发现双颊、舌头发白伴有疼痛2月余",
+        history: "2月前开始双颊及舌头发白，进食疼痛明显，外院治疗后疼痛稍减轻，近1周再次加重。",
+        exam: "双颊及舌部白色病损，伴糜烂或刺激痛，需关注多部位受累特点。",
+        auxiliary: "病例包含病理检查资料，学生申请病理检查后展示。",
+        diagnosis: "口腔扁平苔藓或苔藓样损害待鉴别",
+        differentials: "苔藓样反应、白斑、念珠菌感染、慢性盘状红斑狼疮。",
+        treatment: "先明确病因和病理性质，再进行局部抗炎、去刺激和随访管理。",
+        initialImages: ["image23.jpeg","image24.jpeg"].map(n => "assets/kb/lichen_planus/" + n),
+        auxiliaryImages: ["image25.png","image26.png"].map(n => "assets/kb/lichen_planus/" + n),
+        followImages: []
+      },
+      {
+        id: "GXMU-KQ-KB-LD-002",
+        source: "口腔医学知识库病例",
+        category: "口腔黏膜病学",
+        name: "左颊黏膜反复疼痛苔藓样损害",
+        basic: "女，47岁；既往史、家族史及全身情况无特殊。",
+        chief: "左颊黏膜反复疼痛3年",
+        history: "3年来左颊黏膜反复溃烂疼痛，进食时疼痛明显，曾于外院诊治。",
+        exam: "左颊黏膜局部白色纹理及糜烂样改变，需追问修复体、药物或接触刺激史。",
+        auxiliary: "可行活检、局部刺激源评估及必要的真菌检查。",
+        diagnosis: "口腔苔藓样损害",
+        differentials: "口腔扁平苔藓、白斑、接触性口炎、药物性苔藓样反应。",
+        treatment: "查找并去除可能诱因，局部控制炎症和感染，长期随访复查。",
+        initialImages: ["assets/kb/lichenoid/image9.png"],
+        followImages: []
+      },
+      {
+        id: "GXMU-KQ-KB-LD-003",
+        source: "口腔医学知识库病例",
+        category: "口腔黏膜病学",
+        name: "舌部糜烂疼痛苔藓样损害",
+        basic: "男，49岁；糖尿病8年，口服二甲双胍降糖。",
+        chief: "舌部糜烂疼痛3月余",
+        history: "3个月前开始出现舌部糜烂、疼痛，进食疼痛明显，自行口服抗生素未见明显好转。",
+        exam: "舌部糜烂伴白色纹理或红斑样改变，需评估感染、创伤和系统病影响。",
+        auxiliary: "病例含病理检查资料，学生申请病理检查后展示。",
+        diagnosis: "口腔苔藓样损害，需结合病理及全身状况评估",
+        differentials: "口腔扁平苔藓、舌白斑、念珠菌感染、创伤性溃疡。",
+        treatment: "控制血糖与局部刺激，必要时局部糖皮质激素和抗感染处理，动态复诊。",
+        initialImages: ["assets/kb/lichenoid/image10.jpeg"],
+        auxiliaryImages: ["assets/kb/lichenoid/image11.jpeg"],
+        followImages: []
+      }
+    ];
+
+    const originalCases = [
+      {
+        difficulty: "初级",
+        caseKey: "ai-basic-pulpitis-01",
+        category: "牙体牙髓病学",
+        basic: "女，24岁；无系统性疾病史。",
+        chief: "右下后牙冷热痛3天",
+        history: "3天前进食冷饮后右下后牙疼痛，去除刺激后疼痛仍持续约1分钟，夜间偶有自发痛。",
+        exam: "右下第一磨牙深龋洞，探痛明显，冷测疼痛持续，叩诊轻度不适。",
+        auxiliary: "根尖片示龋损近髓，根尖周未见明显低密度影。",
+        diagnosis: "急性牙髓炎",
+        differentials: "深龋、可复性牙髓炎、急性根尖周炎。",
+        treatment: "完善牙髓诊断后行根管治疗，控制疼痛，后期修复牙体缺损。"
+      },
+      {
+        difficulty: "初级",
+        caseKey: "ai-basic-caries-02",
+        category: "牙体牙髓病学",
+        basic: "男，19岁；无系统性疾病史。",
+        chief: "左上后牙食物嵌塞2月",
+        history: "2月来左上后牙进食后常有食物嵌塞，偶有甜食敏感，无夜间痛和自发痛。",
+        exam: "左上第一磨牙邻面龋洞，探诊粗糙，冷测一过性敏感，叩诊阴性。",
+        auxiliary: "咬翼片示邻面龋损达牙本质浅中层，未近髓。",
+        diagnosis: "中龋",
+        differentials: "浅龋、深龋、可复性牙髓炎。",
+        treatment: "去腐备洞后树脂充填，指导邻面清洁和定期复查。"
+      },
+      {
+        difficulty: "初级",
+        caseKey: "ai-basic-gingivitis-03",
+        category: "牙周病学",
+        basic: "女，21岁；近期备考，口腔清洁不规律。",
+        chief: "牙龈刷牙出血1月",
+        history: "1月来刷牙时牙龈出血，平时无明显疼痛，无牙齿松动。",
+        exam: "前牙区菌斑软垢较多，牙龈缘红肿，探诊出血，牙周袋深度2-3mm。",
+        auxiliary: "牙周影像未见明显牙槽骨吸收。",
+        diagnosis: "菌斑性龈炎",
+        differentials: "慢性牙周炎、血液系统疾病相关龈出血、药物性牙龈增生。",
+        treatment: "洁治、菌斑控制、刷牙和牙线指导，2-4周复查。"
+      },
+      {
+        difficulty: "中级",
+        caseKey: "ai-mid-periodontitis-01",
+        category: "牙周病学",
+        basic: "男，42岁；吸烟15年，每日约10支。",
+        chief: "刷牙出血半年",
+        history: "半年反复刷牙出血，近2个月自觉口腔异味，未规律洁治。",
+        exam: "全口牙石较多，牙龈红肿，探诊出血，多个位点牙周袋4-5mm。",
+        auxiliary: "牙周影像提示局部牙槽嵴水平吸收。",
+        diagnosis: "慢性牙周炎",
+        differentials: "慢性龈炎、侵袭性牙周炎、血液系统疾病相关龈出血。",
+        treatment: "牙周基础治疗、戒烟指导、菌斑控制和定期维护。"
+      },
+      {
+        difficulty: "中级",
+        caseKey: "ai-mid-periapical-02",
+        category: "牙体牙髓病学",
+        basic: "男，35岁；无特殊全身病史。",
+        chief: "右上前牙咬物痛1周",
+        history: "右上前牙曾有外伤史，近1周咬物不适加重，无明显冷热痛。",
+        exam: "右上中切牙牙冠轻度变色，叩诊阳性，牙髓活力测试无反应。",
+        auxiliary: "根尖片示根尖区边界较清低密度影。",
+        diagnosis: "慢性根尖周炎急性发作",
+        differentials: "牙周脓肿、根裂、急性牙髓炎。",
+        treatment: "根管治疗，急性症状控制后完善根充及冠部修复。"
+      },
+      {
+        difficulty: "中级",
+        caseKey: "ai-mid-prostho-03",
+        category: "口腔修复学",
+        basic: "女，58岁；血压控制稳定。",
+        chief: "下颌后牙缺失影响咀嚼半年",
+        history: "半年前拔除下颌双侧后牙后未修复，咀嚼效率下降。",
+        exam: "下颌双侧游离端缺失，余牙牙周状况尚可，咬合间隙基本充足。",
+        auxiliary: "全景片示余牙根周未见明显异常，牙槽嵴中度吸收。",
+        diagnosis: "下颌双侧游离端缺失",
+        differentials: "固定修复适应证、种植修复适应证、可摘局部义齿设计。",
+        treatment: "评估牙周和骨量后选择可摘局部义齿或种植支持修复，进行咬合与卫生指导。"
+      },
+      {
+        difficulty: "高级",
+        caseKey: "ai-advanced-olp-01",
+        category: "口腔黏膜病学",
+        basic: "女，51岁；睡眠欠佳，近期压力大。",
+        chief: "双颊白纹伴疼痛1月",
+        history: "1月来双颊黏膜粗糙，进食辛辣时疼痛明显，无明显发热。",
+        exam: "双颊黏膜对称性珠光白色网纹，局部充血糜烂。",
+        auxiliary: "活检可见基底细胞液化变性及淋巴细胞带状浸润。",
+        diagnosis: "口腔扁平苔藓",
+        differentials: "白斑、苔藓样反应、慢性盘状红斑狼疮。",
+        treatment: "去除刺激、心理支持、局部抗炎镇痛、必要时活检与随访。"
+      },
+      {
+        difficulty: "高级",
+        caseKey: "ai-advanced-leukoplakia-02",
+        category: "口腔黏膜病学",
+        basic: "男，62岁；吸烟30年，每日约20支。",
+        chief: "舌侧白斑粗糙半年",
+        history: "半年来发现舌侧白色斑块，粗糙感明显，近1月偶有刺激痛。",
+        exam: "舌腹及舌缘可见白色不均质斑块，局部略隆起，表面粗糙，擦不去。",
+        auxiliary: "活检提示上皮异常增生，需结合病损范围评估治疗方式。",
+        diagnosis: "口腔白斑伴上皮异常增生",
+        differentials: "口腔扁平苔藓、白色角化症、念珠菌感染、早期鳞癌。",
+        treatment: "戒烟，去除刺激因素，病理指导下手术或严密随访，警惕癌变风险。"
+      },
+      {
+        difficulty: "高级",
+        caseKey: "ai-advanced-osmf-03",
+        category: "口腔黏膜病学",
+        basic: "男，45岁；长期咀嚼槟榔史。",
+        chief: "张口受限伴口腔灼痛1年",
+        history: "1年来口腔灼痛，进食辛辣明显，逐渐出现张口受限。",
+        exam: "双颊黏膜苍白、弹性差，可触及纤维条索，张口度约25mm。",
+        auxiliary: "病理可见上皮萎缩及黏膜下胶原纤维增生，需评估癌变风险。",
+        diagnosis: "口腔黏膜下纤维化",
+        differentials: "白斑、扁平苔藓、硬皮病相关口腔表现。",
+        treatment: "停止槟榔，改善张口训练，局部或全身综合治疗，并长期随访。"
+      }
+    ];
+
+    const choiceBank = [
+      {
+        q: "口腔扁平苔藓典型临床表现中较符合的一项是？",
+        options: ["损害多为双侧性，可见珠光白色网纹", "所有白色斑块均可诊断为白斑", "病损只发生于舌背", "不需要与慢性盘状红斑狼疮鉴别"],
+        answer: 0,
+        source: "斑纹类疾病课程题库",
+        weak: "口腔扁平苔藓临床表现"
+      },
+      {
+        q: "白斑治疗的首要措施通常是？",
+        options: ["立即全身应用抗生素", "去除局部刺激因素", "长期自行涂擦激素", "不需随访"],
+        answer: 1,
+        source: "斑纹类疾病课程题库",
+        weak: "白斑治疗原则"
+      },
+      {
+        q: "属于口腔癌前病变的是？",
+        options: ["白色水肿", "白色角化症", "均质型白斑", "复发性阿弗他溃疡"],
+        answer: 2,
+        source: "斑纹类疾病课程题库",
+        weak: "癌前病变识别"
+      },
+      {
+        q: "口腔黏膜下纤维化的问诊重点之一是？",
+        options: ["是否长期咀嚼槟榔", "是否佩戴隐形眼镜", "是否近期洗牙", "是否乳牙滞留"],
+        answer: 0,
+        source: "斑纹类疾病课程题库",
+        weak: "黏膜下纤维化病因"
+      },
+      {
+        q: "慢性盘状红斑狼疮较需关注的诱发或加重因素是？",
+        options: ["日光照射", "乳牙替换", "牙冠萌出", "下颌第三磨牙阻生"],
+        answer: 0,
+        source: "斑纹类疾病课程题库",
+        weak: "慢性盘状红斑狼疮"
+      },
+      {
+        q: "口腔扁平苔藓典型病理改变不包括以下哪项？",
+        options: ["基底细胞液化变性", "固有层淋巴细胞带状浸润", "嗜酸性胶样小体", "腺样囊性癌样筛孔结构"],
+        answer: 3,
+        source: "斑纹类疾病课程题库",
+        weak: "扁平苔藓病理"
+      }
+    ];
+
+    const shortBank = [
+      {
+        q: "什么是癌前病变、癌前状态？请各举出两种口腔黏膜病。",
+        keys: ["癌前病变", "更易转变为癌", "白斑", "红斑", "癌前状态", "扁平苔藓", "盘状红斑狼疮", "黏膜下纤维化"],
+        ref: "癌前病变指病损本身不是癌，但较正常黏膜更易转变为癌，如白斑、红斑。癌前状态指与正常组织相比有更高癌变危险性的全身或局部状态，如口腔扁平苔藓、慢性盘状红斑狼疮或口腔黏膜下纤维化。",
+        source: "斑纹类疾病课程题库",
+        weak: "癌前病变与癌前状态"
+      },
+      {
+        q: "列出 4 种有白色病损的口腔黏膜病，并简述白色病损特点。",
+        keys: ["白斑", "斑块", "念珠菌", "可擦去", "扁平苔藓", "珠光白色", "红斑狼疮", "放射状短白纹"],
+        ref: "可答白斑、急性假膜型念珠菌性口炎、口腔扁平苔藓、慢性盘状红斑狼疮等；需说明白斑常为白色或灰白斑块，念珠菌假膜可擦去，扁平苔藓为珠光白色网纹，盘状红斑狼疮可见放射状短白纹。",
+        source: "斑纹类疾病课程题库",
+        weak: "白色病损鉴别"
+      },
+      {
+        q: "口腔黏膜下纤维化与白斑如何鉴别？",
+        keys: ["颊", "软腭", "纤维性条索", "张口受限", "白斑", "白色斑块", "无纤维条索", "病理"],
+        ref: "黏膜下纤维化常累及颊、咽、软腭，后期有纤维性条索、张口受限、吞咽困难等；白斑多为白色或灰白色斑块，无黏膜下纤维条索和张口受限，病理以角化异常和上皮增生为主。",
+        source: "斑纹类疾病课程题库",
+        weak: "黏膜下纤维化鉴别"
+      },
+      {
+        q: "白斑的癌变倾向需要考虑哪些因素？",
+        keys: ["年龄", "女性", "吸烟", "舌缘", "口底", "非均质", "念珠菌", "异常增生", "病程", "疼痛"],
+        ref: "需考虑年龄较大、女性尤其不吸烟女性、吸烟量大、舌缘舌腹口底等高危部位、非均质型或伴念珠菌感染、病理上皮异常增生、病程长、刺激痛或自发痛等因素。",
+        source: "斑纹类疾病课程题库",
+        weak: "白斑癌变风险"
+      },
+      {
+        q: "简述口腔扁平苔藓的诊断思路。",
+        keys: ["主诉", "疼痛", "粗糙", "刺激痛", "珠光白纹", "双侧", "对称", "皮肤", "活检"],
+        ref: "应结合主诉和病史，关注疼痛、粗糙感、刺激性食物痛；检查珠光白色网纹、树枝状或环状条纹、双侧对称和多部位受累；注意皮肤、指甲、生殖器黏膜病损，必要时活检确诊。",
+        source: "斑纹类疾病课程题库",
+        weak: "扁平苔藓诊断思路"
+      }
+    ];
+
+    const state = {
+      currentFlow: "none",
+      step: 0,
+      case: null,
+      studentId: "匿名学生",
+      studentLoggedIn: false,
+      teacherLoggedIn: false,
+      voiceReadEnabled: false,
+      recognizing: false,
+      preferredVoiceName: "",
+      usedOriginalCaseKeys: [],
+      answers: [],
+      answerScores: [],
+      quiz: [],
+      quizIndex: 0,
+      quizAnswers: []
+    };
+
+    const chat = document.getElementById("chat");
+    const input = document.getElementById("studentInput");
+    const flowBadge = document.getElementById("flowBadge");
+    const menuGrid = document.getElementById("menuGrid");
+    const stepList = document.getElementById("stepList");
+    const avatarWrap = document.getElementById("avatarWrap");
+    const voiceStatus = document.getElementById("voiceStatus");
+    const voiceSelect = document.getElementById("voiceSelect");
+    const caseImageInput = document.getElementById("caseImageInput");
+    const uploadPreview = document.getElementById("uploadPreview");
+    let recognition = null;
+    let uploadedImageUrls = [];
+
+    function storeKey() { return "gxmu_kq_ai_records_v1"; }
+    function getRecords() { return JSON.parse(localStorage.getItem(storeKey()) || "[]"); }
+    function setRecords(records) {
+      localStorage.setItem(storeKey(), JSON.stringify(records));
+      saveRecordsToDb(records);
+    }
+    const dbName = "kouqiang526_training_db";
+    let appDb = null;
+    function openAppDb() {
+      if (!("indexedDB" in window)) return Promise.resolve(null);
+      return new Promise(resolve => {
+        const request = indexedDB.open(dbName, 1);
+        request.onupgradeneeded = event => {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains("students")) db.createObjectStore("students", { keyPath: "studentId" });
+          if (!db.objectStoreNames.contains("records")) db.createObjectStore("records", { keyPath: "fid" });
+        };
+        request.onsuccess = event => {
+          appDb = event.target.result;
+          resolve(appDb);
+        };
+        request.onerror = () => resolve(null);
+      });
+    }
+    function putDb(storeName, value) {
+      if (!appDb) return;
+      const tx = appDb.transaction(storeName, "readwrite");
+      tx.objectStore(storeName).put(value);
+    }
+    function saveStudentToDb(studentId) {
+      putDb("students", {
+        studentId,
+        school: "广西医科大学口腔学院",
+        consent: true,
+        consentText: "学号仅用于课程训练记录、测试统计和教师学习反馈",
+        updatedAt: new Date().toISOString()
+      });
+    }
+    function saveRecordsToDb(records) {
+      if (!appDb) return;
+      const tx = appDb.transaction("records", "readwrite");
+      const store = tx.objectStore("records");
+      records.forEach(record => store.put(record));
+    }
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function esc(text) {
+      return String(text).replace(/[&<>"']/g, s => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[s]));
+    }
+    function nowText() { return new Date().toLocaleString("zh-CN", { hour12: false }); }
+
+    function addMessage(role, text, images = []) {
+      const msg = document.createElement("div");
+      msg.className = "msg " + role;
+      msg.innerHTML = esc(text);
+      if (images.length) {
+        const grid = document.createElement("div");
+        grid.className = "image-grid";
+        images.forEach((src, index) => {
+          const img = document.createElement("img");
+          img.className = "case-img";
+          img.src = src;
+          img.alt = "病例图片 " + (index + 1);
+          img.loading = "lazy";
+          img.addEventListener("click", () => openLightbox(src));
+          grid.appendChild(img);
+        });
+        msg.appendChild(grid);
+      }
+      chat.appendChild(msg);
+      chat.scrollTop = chat.scrollHeight;
+      if (role === "assistant" && state.voiceReadEnabled) speakAssistantText(text);
+    }
+
+    function setVoiceStatus(text, mode = "") {
+      voiceStatus.textContent = text;
+      avatarWrap.classList.toggle("listening", mode === "listening");
+      avatarWrap.classList.toggle("speaking", mode === "speaking");
+    }
+
+    function cleanSpeechText(text) {
+      return String(text)
+        .replace(/[✅💡📝📍📚🎙🔊■]/g, "")
+        .replace(/【[^】]+】/g, "")
+        .replace(/当前知识图谱节点[:：].*/g, "")
+        .replace(/输入“返回主菜单”.*/g, "")
+        .replace(/\s+/g, " ")
+        .slice(0, 360);
+    }
+
+    function getVoices() {
+      return "speechSynthesis" in window ? window.speechSynthesis.getVoices() : [];
+    }
+
+    function scoreVoice(voice) {
+      const name = `${voice.name} ${voice.voiceURI || ""}`.toLowerCase();
+      const lang = (voice.lang || "").toLowerCase();
+      let score = 0;
+      if (lang.includes("zh") || name.includes("chinese") || name.includes("mandarin")) score += 50;
+      if (name.includes("male") || name.includes("man") || name.includes("yunxi") || name.includes("yunyang") || name.includes("xiaogang") || name.includes("kangkang") || name.includes("liang")) score += 35;
+      if (name.includes("natural") || name.includes("neural") || name.includes("online")) score += 10;
+      if (voice.localService) score += 3;
+      return score;
+    }
+
+    function selectPreferredVoice() {
+      const voices = getVoices();
+      if (!voices.length) return null;
+      if (state.preferredVoiceName) {
+        const selected = voices.find(v => v.name === state.preferredVoiceName);
+        if (selected) return selected;
+      }
+      return [...voices].sort((a, b) => scoreVoice(b) - scoreVoice(a))[0];
+    }
+
+    function populateVoiceSelect() {
+      if (!("speechSynthesis" in window)) return;
+      const voices = getVoices();
+      const zhVoices = voices.filter(v => (v.lang || "").toLowerCase().includes("zh") || /chinese|mandarin/i.test(v.name));
+      const list = zhVoices.length ? zhVoices : voices;
+      voiceSelect.innerHTML = `<option value="">自动选择中文男声</option>` + list
+        .sort((a, b) => scoreVoice(b) - scoreVoice(a))
+        .map(v => `<option value="${esc(v.name)}">${esc(v.name)}（${esc(v.lang || "未知语言")}）</option>`)
+        .join("");
+      voiceSelect.value = state.preferredVoiceName || "";
+    }
+
+    function splitSpeechText(text) {
+      return cleanSpeechText(text)
+        .replace(/([。！？；])/g, "$1|")
+        .split("|")
+        .map(s => s.trim())
+        .filter(Boolean)
+        .slice(0, 5);
+    }
+
+    function speakAssistantText(text) {
+      if (!("speechSynthesis" in window)) {
+        setVoiceStatus("当前浏览器不支持朗读");
+        return;
+      }
+      const chunks = splitSpeechText(text);
+      if (!chunks.length) return;
+      const voice = selectPreferredVoice();
+      window.speechSynthesis.cancel();
+      let index = 0;
+      const speakNext = () => {
+        if (index >= chunks.length) {
+          setVoiceStatus("语音待机");
+          return;
+        }
+        const utterance = new SpeechSynthesisUtterance(chunks[index]);
+        utterance.lang = voice?.lang || "zh-CN";
+        utterance.voice = voice || null;
+        utterance.rate = 0.86;
+        utterance.pitch = 0.72;
+        utterance.volume = 1;
+        utterance.onstart = () => setVoiceStatus(`数字人正在讲解（${voice?.name || "自动音色"}）`, "speaking");
+        utterance.onend = () => {
+          index += 1;
+          window.setTimeout(speakNext, 180);
+        };
+        utterance.onerror = () => setVoiceStatus("朗读被中断");
+        window.speechSynthesis.speak(utterance);
+      };
+      speakNext();
+    }
+
+    function initVoice() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const voiceInputBtn = document.getElementById("voiceInputBtn");
+      const voiceReadBtn = document.getElementById("voiceReadBtn");
+      const canSpeak = "speechSynthesis" in window;
+      if (canSpeak) {
+        populateVoiceSelect();
+        window.speechSynthesis.onvoiceschanged = populateVoiceSelect;
+      } else {
+        voiceReadBtn.disabled = true;
+        voiceSelect.disabled = true;
+      }
+      if (!SpeechRecognition) {
+        voiceInputBtn.disabled = true;
+        setVoiceStatus(canSpeak ? "当前浏览器不支持语音输入" : "当前浏览器不支持语音功能");
+        return;
+      }
+      recognition = new SpeechRecognition();
+      recognition.lang = "zh-CN";
+      recognition.interimResults = false;
+      recognition.continuous = false;
+      recognition.onstart = () => {
+        state.recognizing = true;
+        voiceInputBtn.classList.add("active");
+        setVoiceStatus("正在聆听，请说出你的回答", "listening");
+      };
+      recognition.onresult = event => {
+        const transcript = Array.from(event.results).map(r => r[0].transcript).join("");
+        const command = normalizeVoiceCommand(transcript.trim());
+        setVoiceStatus("已识别语音，正在提交");
+        input.value = command;
+        window.setTimeout(() => {
+          input.value = "";
+          handleStudentSubmit(command);
+        }, 200);
+      };
+      recognition.onerror = () => setVoiceStatus("语音识别失败，请重试或改用文字");
+      recognition.onend = () => {
+        state.recognizing = false;
+        voiceInputBtn.classList.remove("active");
+        avatarWrap.classList.remove("listening");
+      };
+    }
+
+    function normalizeVoiceCommand(text) {
+      const map = { "一": "1", "第一": "1", "二": "2", "第二": "2", "三": "3", "第三": "3", "四": "4", "第四": "4", "五": "5", "第五": "5" };
+      return map[text] || text;
+    }
+
+    function openLightbox(src) {
+      document.getElementById("lightboxImg").src = src;
+      document.getElementById("lightbox").classList.add("open");
+    }
+
+    function renderSteps() {
+      stepList.innerHTML = steps.map((s, i) => `<li class="${i === state.step ? "current" : ""}">${s}</li>`).join("");
+    }
+
+    function setFlow(flow) {
+      state.currentFlow = flow;
+      flowBadge.textContent = FLOWS[flow];
+      menuGrid.classList.toggle("hidden", flow !== "none");
+      renderSteps();
+    }
+
+    function resetToMenu(withMessage = true) {
+      state.currentFlow = "none";
+      state.step = 0;
+      state.case = null;
+      state.answers = [];
+      state.answerScores = [];
+      setFlow("none");
+      updateDifficultyDisplay();
+      if (withMessage) {
+        addMessage("assistant", "已回到主菜单。请输入 1、2、3、4、5 选择训练流程。");
+      }
+    }
+
+    function setStudentLogin(studentId) {
+      state.studentId = studentId;
+      state.studentLoggedIn = true;
+      localStorage.setItem("gxmu_kq_student_id", studentId);
+      saveStudentToDb(studentId);
+      document.getElementById("studentAuthStatus").textContent = `已登录学号：${studentId}`;
+      document.getElementById("quizLoginNotice").textContent = `当前登录学号：${studentId}。可以开始课前/课后测试。`;
+      document.getElementById("quizLoginNotice").classList.remove("danger-text");
+      input.placeholder = "请输入 1-5 选择流程，或继续回答当前训练步骤";
+      updateDifficultyDisplay();
+      addMessage("assistant", `学号 ${studentId} 已登录。现在可以选择训练流程或继续作答。`);
+    }
+
+    function requireStudentLogin() {
+      if (state.studentLoggedIn) return true;
+      addMessage("assistant", "请先输入学号并登录，登录后才能开始训练或提交作答。");
+      document.getElementById("studentLoginId").focus();
+      return false;
+    }
+
+    function restoreStudentLogin() {
+      const saved = localStorage.getItem("gxmu_kq_student_id");
+      if (saved) {
+        state.studentId = saved;
+        state.studentLoggedIn = true;
+        document.getElementById("studentLoginId").value = saved;
+        document.getElementById("privacyConsent").checked = true;
+        document.getElementById("studentAuthStatus").textContent = `已登录学号：${saved}`;
+        document.getElementById("quizLoginNotice").textContent = `当前登录学号：${saved}。可以开始课前/课后测试。`;
+        document.getElementById("quizLoginNotice").classList.remove("danger-text");
+        updateDifficultyDisplay();
+      }
+    }
+
+    function updateTeacherGate() {
+      document.getElementById("teacherLoginPanel").classList.toggle("hidden", state.teacherLoggedIn);
+      document.getElementById("teacherContent").classList.toggle("hidden", !state.teacherLoggedIn);
+      if (state.teacherLoggedIn) renderTeacher();
+    }
+
+    function initialGreeting() {
+      addMessage("assistant", "请选择训练流程：\n1. AI 原创随机病例训练\n2. 学生自带病例分析\n3. 专项知识点巩固\n4. 口腔黏膜病多模态阅片训练\n5. 知识库带图病例训练");
+      renderSteps();
+      refreshMetrics();
+    }
+
+    function difficultyOrder() { return ["初级", "中级", "高级"]; }
+
+    function nextDifficultyFromRecords() {
+      const order = difficultyOrder();
+      const studentRecords = getRecords().filter(r => r.student === state.studentId && r.type === "训练");
+      for (const level of order) {
+        const passed = studentRecords.some(r => (r.train_difficulty || r.difficulty) === level && Number(r.accuracy || 0) >= 80);
+        if (!passed) return level;
+      }
+      return "高级";
+    }
+
+    function nextDifficultyAfter(level, passed) {
+      if (!passed) return level || "初级";
+      const order = difficultyOrder();
+      const idx = order.indexOf(level);
+      return order[Math.min(idx + 1, order.length - 1)] || "初级";
+    }
+
+    function updateDifficultyDisplay() {
+      const recommended = state.studentLoggedIn ? nextDifficultyFromRecords() : "初级";
+      document.getElementById("nextDifficulty").textContent = recommended;
+      document.getElementById("currentDifficulty").textContent = state.case?.difficulty || "未开始";
+    }
+
+    function chooseOriginalCase() {
+      const target = nextDifficultyFromRecords();
+      const candidates = originalCases.filter(c => c.difficulty === target);
+      const pool = candidates.length ? candidates : originalCases;
+      let available = pool.filter(c => !state.usedOriginalCaseKeys.includes(c.caseKey));
+      if (!available.length) {
+        state.usedOriginalCaseKeys = state.usedOriginalCaseKeys.filter(key => !pool.some(c => c.caseKey === key));
+        available = pool;
+      }
+      const selected = pick(available);
+      state.usedOriginalCaseKeys.push(selected.caseKey);
+      return selected;
+    }
+
+    function flow1Entry() {
+      const c = chooseOriginalCase();
+      state.case = { ...c, id: "AI-" + Date.now(), source: "AI 生成" };
+      state.answerScores = [];
+      state.step = 0;
+      setFlow("flow_1");
+      updateDifficultyDisplay();
+      addMessage("assistant", `好的，正在为你随机生成一份口腔临床病例，开始阶梯式思维训练。\n\n【案例难度】\n${c.difficulty}\n\n【患者基本信息】\n${c.basic}\n\n【主诉】\n${c.chief}\n\n请开始第 1 步主诉解析训练：\n请分析该主诉，提炼核心症状、发病部位和持续时间，并判断该主诉是否符合临床规范。\n\n如需更换本题，请输入「换一个病例」。\n\n📍 当前知识图谱节点：临床问诊 → 主诉规范化`);
+    }
+
+    function flow2Entry() {
+      state.case = { id: "SELF-" + Date.now(), source: "学生自带", category: "学生自带病例", difficulty: "学生自定" };
+      state.answerScores = [];
+      state.step = 0;
+      setFlow("flow_2");
+      updateDifficultyDisplay();
+      addMessage("assistant", "好的，请详细描述你想分析的临床病例信息，建议按以下顺序提供：\n\n患者基本信息：性别、年龄、全身健康状况\n主诉\n现病史\n已做过的口腔检查及结果\n已做过的辅助检查及结果\n\n你也可以先描述部分信息，我会引导你逐步补充完整。\n\n📍 当前知识图谱节点：临床问诊 → 病例资料采集");
+    }
+
+    function flow3Entry() {
+      state.case = null;
+      state.answerScores = [];
+      state.step = 0;
+      setFlow("flow_3");
+      updateDifficultyDisplay();
+      addMessage("assistant", "好的，请告诉我你想专项巩固的学科方向：\n\n牙体牙髓病学\n牙周病学\n口腔修复学\n口腔正畸学\n口腔颌面外科学\n口腔黏膜病学\n口腔放射诊断\n\n你也可以直接告诉我具体知识点，例如“根尖周炎诊断”“牙周袋检查”“残根残冠修复”等。\n\n📍 当前知识图谱节点：知识巩固 → 专项训练方向选择");
+    }
+
+    function flow4Entry() {
+      state.case = { id: "IMG-" + Date.now(), source: "学生上传或描述图片", category: "口腔黏膜病学", difficulty: "中级" };
+      state.answerScores = [];
+      state.step = 1;
+      setFlow("flow_4");
+      updateDifficultyDisplay();
+      addMessage("assistant", "好的，已为你进入口腔黏膜病多模态阅片思维训练。\n\n请通过以下任一方式提供训练素材：\n\n直接上传你想分析的口腔黏膜病临床图片或病理切片图\n用文字详细描述图片关键特征，如色泽、形态、范围、边界、质地等\n\n我将引导你逐步识别图像特征并进行临床推理。\n\n📍 当前知识图谱节点：临床表现 → 图像特征识别");
+    }
+
+    function handleCaseImageUpload(files) {
+      if (!state.studentLoggedIn) {
+        requireStudentLogin();
+        caseImageInput.value = "";
+        return;
+      }
+      const selected = Array.from(files || []).filter(file => file.type.startsWith("image/"));
+      if (!selected.length) return;
+      uploadedImageUrls.forEach(url => URL.revokeObjectURL(url));
+      uploadedImageUrls = selected.map(file => URL.createObjectURL(file));
+      uploadPreview.innerHTML = uploadedImageUrls.map((src, index) => `<img src="${src}" alt="上传训练图片 ${index + 1}" />`).join("");
+      if (state.currentFlow !== "flow_4") flow4Entry();
+      addMessage("user", `已上传 ${selected.length} 张图片作为阅片训练素材。`, uploadedImageUrls);
+      addMessage("assistant", "请观察已上传图片，先描述你看到的关键特征：病变部位、色泽、形态、范围、边界、质地，以及与周围组织的关系。\n\n📍 当前知识图谱节点：临床表现 → 图像特征识别");
+    }
+
+    function flow5Entry() {
+      const c = pick(kbCases);
+      state.case = { ...c, difficulty: c.difficulty || "中级" };
+      state.answerScores = [];
+      state.step = 0;
+      setFlow("flow_5");
+      updateDifficultyDisplay();
+      addMessage("assistant", `已为你进入「口腔医学」知识库带图病例训练通道，正在为你随机调取一份真实带图病例。\n\n📚 病例来源：「口腔医学」知识库 - ${c.id} / ${c.name}\n\n【案例难度】\n${state.case.difficulty}\n\n【患者基本信息】\n${c.basic}\n\n【主诉】\n${c.chief}\n\n【初始临床图片】\n以下为该病例初始临床外观图。\n\n请开始第 1 步主诉解析训练：\n请分析该主诉，提炼核心症状、发病部位和持续时间，并结合已展示的初始图片提出你的初步观察。\n\n📍 当前知识图谱节点：临床问诊 → 主诉规范化`, c.initialImages);
+    }
+
+    function routeFromMenu(text) {
+      if (/^(1|随机生成病例|随机病例|随机出题|AI\s*生成病例|来一个病例|出一个病例)$/.test(text) && !/知识库|真实病例|带图病例|调取病例/.test(text)) return flow1Entry();
+      if (/^(2|自己的病例|我有病例|我来描述|分析我的病例)$/.test(text)) return flow2Entry();
+      if (/^(3|专项知识点|专项巩固|巩固牙体牙髓|巩固牙周|巩固修复|巩固正畸|巩固黏膜病)$/.test(text)) return flow3Entry();
+      if (/^(4|黏膜病阅片|上传图片|病理切片|分析口腔图片|看图诊断)$/.test(text)) return flow4Entry();
+      if (/^(5|知识库病例|知识库带图|真实病例|调取病例|从知识库找病例)$/.test(text)) return flow5Entry();
+      if (/学情查询|班级分析|教学管理|学生数据统计|病例布置|批量生成训练任务|教学报告|教师端数据分析/.test(text)) {
+        addMessage("assistant", "抱歉，本助手仅面向口腔专业学生使用，专注于临床思维训练和病例分析。\n\n如需查看学情数据或进行教学管理，请进入本页面左侧“教师学情”模块。");
+        return;
+      }
+      addMessage("assistant", "你可以输入 1、2、3、4、5 选择训练流程；也可以直接说“随机病例”“分析我的病例”“黏膜病阅片”等。");
+    }
+
+    function isolatedDigitClarify() {
+      addMessage("assistant", `你当前在「${FLOWS[state.currentFlow]}」中，请继续完成当前训练步骤。\n如需返回主菜单，请输入「返回主菜单」。`);
+    }
+
+    function keywordScore(text, keys) {
+      const normalized = text.toLowerCase();
+      let hit = 0;
+      keys.forEach(k => {
+        if (normalized.includes(String(k).toLowerCase())) hit++;
+      });
+      return Math.min(100, Math.round(hit / Math.max(keys.length, 1) * 100));
+    }
+
+    function hasAny(text, words) {
+      return words.some(w => text.includes(w));
+    }
+
+    function assessStepAnswer(text, step) {
+      const clean = text.replace(/\s+/g, "");
+      const checksByStep = {
+        0: [
+          { name: "核心症状", words: ["症状", "疼痛", "痛", "溃烂", "白纹", "冷热痛", "出血", "糜烂"] },
+          { name: "发病部位", words: ["部位", "双颊", "颊", "舌", "牙", "牙龈", "口腔", "后牙", "右下", "左颊"] },
+          { name: "持续时间", words: ["时间", "天", "周", "月", "年", "余"] },
+          { name: "主诉规范判断", words: ["规范", "符合", "不符合", "主诉"] }
+        ],
+        1: [
+          { name: "病变部位", words: ["部位", "颊", "舌", "唇", "牙龈", "口腔"] },
+          { name: "色泽", words: ["色", "白", "红", "珠光", "充血"] },
+          { name: "形态", words: ["形态", "网状", "条纹", "斑块", "糜烂", "溃疡"] },
+          { name: "边界或范围", words: ["边界", "范围", "双侧", "对称", "局限", "弥散"] }
+        ],
+        2: [
+          { name: "起病与病程", words: ["何时", "多久", "病程", "发病", "时间"] },
+          { name: "疼痛与诱因", words: ["疼痛", "刺激", "进食", "冷热", "辛辣", "诱因"] },
+          { name: "复发与治疗史", words: ["反复", "复发", "治疗", "用药", "外院"] },
+          { name: "全身与习惯", words: ["全身", "糖尿病", "吸烟", "饮酒", "槟榔", "药物", "过敏"] }
+        ],
+        3: [
+          { name: "视诊/病损检查", words: ["视诊", "部位", "形态", "色泽", "范围", "边界", "病损"] },
+          { name: "触诊/探诊", words: ["触诊", "探诊", "质地", "压痛", "触痛"] },
+          { name: "局部刺激因素", words: ["残根", "残冠", "修复体", "牙石", "咬合", "刺激"] },
+          { name: "检查目的", words: ["目的", "判断", "明确", "评估", "鉴别"] }
+        ],
+        4: [
+          { name: "辅助检查名称", words: ["活检", "病理", "影像", "根尖片", "涂片", "真菌", "血糖", "实验室"] },
+          { name: "诊断价值", words: ["价值", "明确", "确诊", "排除", "鉴别", "判断"] },
+          { name: "适应证或原因", words: ["因为", "由于", "长期", "不愈", "癌变", "糜烂"] }
+        ],
+        5: [
+          { name: "初步诊断", words: ["诊断", "扁平苔藓", "牙髓炎", "牙周炎", "苔藓样", "白斑"] },
+          { name: "诊断依据", words: ["依据", "主诉", "病史", "检查", "辅助", "病理"] }
+        ],
+        6: [
+          { name: "鉴别对象", words: ["鉴别", "白斑", "红斑", "念珠菌", "红斑狼疮", "苔藓样", "类天疱疮"] },
+          { name: "关键鉴别点", words: ["区别", "特点", "是否", "可擦去", "病理", "部位", "对称"] }
+        ],
+        7: [
+          { name: "治疗原则", words: ["治疗", "原则", "去除刺激", "控制", "抗炎", "根管", "洁治"] },
+          { name: "治疗顺序", words: ["顺序", "先", "再", "必要时", "局部", "全身"] },
+          { name: "随访安排", words: ["随访", "复诊", "观察", "复查"] }
+        ],
+        8: [
+          { name: "预后", words: ["预后", "复发", "风险", "并发症"] },
+          { name: "患者教育", words: ["教育", "戒烟", "口腔卫生", "辛辣", "复诊", "随访"] }
+        ]
+      };
+      const checks = checksByStep[step] || [];
+      const hit = checks.filter(c => hasAny(clean, c.words));
+      const minLen = step === 5 ? 12 : 18;
+      const lengthOk = clean.length >= minLen;
+      const requiredHits = step === 5 ? 2 : Math.min(3, checks.length);
+      const enough = lengthOk && hit.length >= requiredHits;
+      const score = Math.min(100, Math.round((hit.length / Math.max(checks.length, 1)) * 80 + (lengthOk ? 20 : 0)));
+      const missing = checks.filter(c => !hit.includes(c)).map(c => c.name);
+      return { enough, score, missing };
+    }
+
+    function guidanceForStep(step, missing) {
+      const tips = {
+        0: "请按“核心症状、发病部位、持续时间、是否符合主诉规范”四点重新回答。",
+        1: "请按“病变部位、色泽、形态、范围/边界、与周围组织关系”重新描述图片。",
+        2: "请至少列出 5 项现病史追问，覆盖起病时间、疼痛特点、诱因、复发/治疗史、全身情况或不良习惯。",
+        3: "请列出口腔检查项目，并说明每项检查目的，例如视诊、触诊、探诊、局部刺激因素检查等。",
+        4: "请写出要申请的辅助检查，并说明诊断价值，例如活检病理、真菌检查、影像或相关实验室检查。",
+        5: "请明确写出初步诊断，并列出至少 2 条诊断依据。",
+        6: "请列出需要鉴别的疾病，并分别写出关键鉴别点。",
+        7: "请说明治疗原则、治疗顺序和随访安排。",
+        8: "请说明预后、复发/并发症风险和患者教育重点。"
+      };
+      const missingText = missing.length ? `目前缺少：${missing.join("、")}。` : "";
+      return `${missingText}${tips[step] || "请围绕当前任务补充回答。"}`;
+    }
+
+    function rejectLowQualityAnswer(step, assessment) {
+      addMessage("assistant", `💡 这一步暂不计分，也不会进入下一步。\n\n你的回答与当前训练任务匹配度约 ${assessment.score}%，信息不足或偏离任务。${guidanceForStep(step, assessment.missing)}\n\n📝 请重新回答当前步骤。\n\n📍 当前知识图谱节点：${steps[step]?.replace(/第 .*?步：/, "") || "临床思维训练"}`);
+    }
+
+    function continueTraining(text) {
+      if (/^[1-5]$/.test(text)) return isolatedDigitClarify();
+      if (state.currentFlow === "flow_3" && !state.case) {
+        const base = text.includes("牙周") ? originalCases[1] : text.includes("牙体") || text.includes("牙髓") ? originalCases[0] : originalCases[2];
+        state.case = { ...base, difficulty: nextDifficultyFromRecords(), id: "SPECIAL-" + Date.now(), source: "AI 专项生成", category: text };
+        updateDifficultyDisplay();
+        addMessage("assistant", `已根据「${text}」生成专项易错考点病例。\n\n【案例难度】\n${state.case.difficulty}\n\n【患者基本信息】\n${state.case.basic}\n\n【主诉】\n${state.case.chief}\n\n请开始第 1 步主诉解析训练：\n请分析该主诉，提炼核心症状、发病部位和持续时间，并判断该主诉是否符合临床规范。\n\n📍 当前知识图谱节点：临床问诊 → 主诉规范化`);
+        return;
+      }
+
+      const c = state.case || {};
+      const assessment = assessStepAnswer(text, state.step);
+      if (!assessment.enough) {
+        rejectLowQualityAnswer(state.step, assessment);
+        return;
+      }
+      state.answers.push({ step: state.step, text, score: assessment.score, missing: assessment.missing });
+      state.answerScores.push(assessment.score);
+      if (state.currentFlow === "flow_4") {
+        handleImageTraining(text);
+        return;
+      }
+
+      if (state.step === 0) {
+        const score = assessment.score;
+        state.step = state.currentFlow === "flow_5" ? 1 : 2;
+        setFlow(state.currentFlow);
+        const next = state.currentFlow === "flow_5"
+          ? "请观察已展示的图片，描述病变部位、色泽、形态、范围、边界和与周围组织关系。"
+          : "针对该主诉，你计划向患者询问哪些现病史信息？请逐项列出，建议至少 5 项。";
+        addMessage("assistant", `✅ 你分析正确的部分：已尝试从主诉中拆解核心信息，当前匹配度约 ${score}%。\n\n💡 建议完善的部分：主诉解析建议明确“核心症状、发病部位、持续时间”，并判断是否混入现病史或过度描述。\n\n📝 下一步任务：${next}\n\n📍 当前知识图谱节点：临床问诊 → 主诉规范化`);
+        return;
+      }
+
+      if (state.step === 1) {
+        state.step = 2;
+        setFlow(state.currentFlow);
+        addMessage("assistant", "✅ 你正确识别的特征：已从图片外观角度进行观察。\n\n💡 建议补充观察的维度：请继续补充色泽是否为珠光白、是否有网状/树枝状条纹、是否伴糜烂充血、是否双侧对称。\n\n📝 下一步任务：针对该主诉，你计划向患者询问哪些现病史信息？请逐项列出，建议至少 5 项。\n\n📍 当前知识图谱节点：临床表现 → 图像特征识别");
+        return;
+      }
+
+      if (state.step === 2) {
+        state.step = 3;
+        setFlow(state.currentFlow);
+        addMessage("assistant", `患者：${c.history || "请继续补充发病时间、诱因、疼痛性质、进食刺激、既往治疗和全身情况。"}\n\n✅ 已覆盖的问诊方向：你开始围绕主诉追问现病史。\n\n💡 建议补充的关键方向：疼痛性质、刺激因素、复发规律、药物/修复体接触史、全身病史和不良习惯。\n\n📝 下一步任务：针对目前获得的信息，你计划进行哪些口腔检查？请说明每项检查的目的。\n\n📍 当前知识图谱节点：临床问诊 → 现病史采集逻辑`);
+        return;
+      }
+
+      if (state.step === 3) {
+        state.step = 4;
+        setFlow(state.currentFlow);
+        addMessage("assistant", `检查发现：${c.exam || "请检查病损部位、形态、色泽、范围、边界、质地、探痛、牙体牙周相关体征。"}\n\n✅ 检查设计合理的部分：能够将主诉与口腔专科检查相连接。\n\n💡 建议补充的检查：病损多部位检查、触诊、刺激因素检查，必要时牙体牙周基础检查。\n\n📝 下一步任务：根据目前的主诉、病史和口腔检查结果，你计划申请哪些辅助检查？请说明每项检查的诊断价值。\n\n📍 当前知识图谱节点：口腔检查 → 检查设计与结果判读`);
+        return;
+      }
+
+      if (state.step === 4) {
+        state.step = 5;
+        setFlow(state.currentFlow);
+        const imgs = state.currentFlow === "flow_5" && /病理|活检|辅助|检查|片/.test(text) ? (c.auxiliaryImages || []) : [];
+        addMessage("assistant", `辅助检查报告：${c.auxiliary || "请根据诊断需要选择影像学、活检、病理、微生物或实验室检查。"}\n\n✅ 辅助检查选择合理的部分：能说明检查与诊断之间的关系。\n\n💡 建议补充或调整的检查：黏膜白色病损若诊断不明、糜烂长期不愈或怀疑癌变，应考虑活检。\n\n📝 下一步任务：结合你目前已经获得的主诉、现病史、口腔检查和辅助检查结果，你的初步诊断是什么？请列出诊断依据。\n\n📍 当前知识图谱节点：辅助检查 → 影像学 / 病理学 / 实验室检查判读`, imgs);
+        return;
+      }
+
+      if (state.step === 5) {
+        const score = assessment.score;
+        state.step = 6;
+        setFlow(state.currentFlow);
+        addMessage("assistant", `✅ 诊断思路合理的部分：你已尝试将病史、检查和辅助检查整合为初步诊断，当前参考匹配度约 ${score}%。\n\n💡 需要修正或补充的地方：标准参考诊断为“${c.diagnosis || "需继续补充资料后判断"}”。请注意诊断依据应逐条对应主诉、临床表现和辅助检查。\n\n📝 下一步任务：你认为还需要与哪些疾病进行鉴别？请分别说明关键鉴别点。\n\n📍 当前知识图谱节点：诊断 → ${c.diagnosis || "诊断类别"}`);
+        return;
+      }
+
+      if (state.step === 6) {
+        state.step = 7;
+        setFlow(state.currentFlow);
+        addMessage("assistant", `✅ 已覆盖的鉴别诊断：你已开始建立横向鉴别思路。\n\n💡 建议补充的鉴别诊断：${c.differentials || "请补充常见相似疾病及关键鉴别点。"}\n\n📝 下一步任务：根据目前诊断，你建议的治疗方案是什么？请说明治疗原则、治疗顺序和随访安排。\n\n📍 当前知识图谱节点：鉴别诊断 → 口腔黏膜白色病损鉴别`);
+        return;
+      }
+
+      if (state.step === 7) {
+        state.step = 8;
+        setFlow(state.currentFlow);
+        const imgs = state.currentFlow === "flow_5" ? (c.followImages || []) : [];
+        addMessage("assistant", `✅ 治疗方案合理的部分：能围绕病因控制、症状控制和随访管理展开。\n\n💡 建议调整的地方：参考治疗原则为“${c.treatment || "按诊断和病情轻重制定个体化治疗"}”。避免激进治疗，疑似恶性或长期不愈病损需进一步检查或转诊会诊。\n\n📝 下一步任务：请分析该病例的预后、复发风险、并发症风险，以及需要向患者进行哪些健康教育。\n\n📍 当前知识图谱节点：治疗 → 分层治疗与随访`, imgs);
+        return;
+      }
+
+      if (state.step === 8) {
+        const result = saveTrainingRecord();
+        const passed = result.accuracy >= 80;
+        addMessage("assistant", `✅ 预后分析合理的部分：已关注复发、随访和患者教育。\n\n💡 建议补充的患者教育内容：避免辛辣刺激和烟酒，维护口腔卫生，按期复诊；口腔黏膜病损若出现增厚、硬结、溃疡长期不愈或疼痛加重，应及时复诊并考虑活检。\n\n📍 当前知识图谱节点：预后 → 患者教育与随访管理\n\n本次临床思维训练已完成，综合正确率 ${result.accuracy}%。${passed ? `已达到进阶标准，建议下一次挑战「${result.nextDifficulty}」案例。` : `建议继续练习当前「${state.case?.difficulty || "初级"}」难度案例，补齐薄弱步骤后再进阶。`}\n\n输入“返回主菜单”可选择下一项训练。`);
+        state.step = 8;
+        updateDifficultyDisplay();
+        return;
+      }
+    }
+
+    function handleImageTraining(text) {
+      if (state.step === 1) {
+        state.step = 2;
+        setFlow("flow_4");
+        addMessage("assistant", "✅ 你正确识别的特征：已描述图片或病损的部分外观特征。\n\n💡 建议补充观察的维度：部位、色泽、形态、范围、边界、质地、是否可擦去、是否疼痛及与周围组织关系。\n\n📝 下一步任务：请基于图像特征，提出你还需要追问哪些现病史信息。\n\n📍 当前知识图谱节点：临床表现 → 图像特征识别");
+      } else {
+        continueAsGenericImage(text);
+      }
+    }
+
+    function continueAsGenericImage(text) {
+      const prompts = [
+        "请继续说明你计划如何进行口腔检查，并说明目的。",
+        "请提出你会申请哪些辅助检查，例如真菌检查、活检病理或相关实验室检查。",
+        "请给出初步诊断和诊断依据。",
+        "请列出鉴别诊断及关键鉴别点。",
+        "请提出治疗原则、随访安排和患者教育。"
+      ];
+      const idx = Math.min(state.step - 2, prompts.length - 1);
+      state.step = Math.min(state.step + 1, 8);
+      setFlow("flow_4");
+      addMessage("assistant", `✅ 你做得好的地方：能够围绕黏膜病图片进行分步推理。\n\n💡 建议完善的地方：阅片训练不能只看“像什么病”，还要把形态、部位、病史和必要检查串联起来。\n\n📝 下一步任务：${prompts[idx]}\n\n📍 当前知识图谱节点：口腔黏膜病 → 多模态阅片推理`);
+      if (state.step === 8) saveTrainingRecord();
+    }
+
+    function saveTrainingRecord() {
+      const records = getRecords();
+      const c = state.case || {};
+      const scoreList = state.answerScores.length ? state.answerScores : state.answers.map(a => Number(a.score || 0));
+      const acc = scoreList.length ? Math.round(scoreList.reduce((s, n) => s + Number(n || 0), 0) / scoreList.length) : 0;
+      const weakText = inferWeakPoints(state.answers.map(a => a.text).join(" "), state.answers);
+      records.unshift({
+        fid: c.id || "TRAIN-" + Date.now(),
+        time: nowText(),
+        student: state.studentId,
+        type: "训练",
+        caseId: c.id || "未命名病例",
+        analysis_complete: Math.min(100, Math.round((state.answers.length / 8) * 100)),
+        accuracy: acc,
+        wrong_knowledge: weakText,
+        weak: weakText,
+        train_difficulty: c.difficulty || "中",
+        difficulty: c.difficulty || "中",
+        case_category: c.category || "口腔临床综合",
+        image_accuracy: ["flow_4", "flow_5"].includes(state.currentFlow) ? Math.min(95, 60 + state.answers.length * 4) : null,
+        summary: state.answers.slice(-3).map(a => a.text).join("；").slice(0, 160),
+        source: c.source || "AI 生成",
+        case_source: state.currentFlow === "flow_5" ? `口腔医学知识库 - ${c.id}` : (c.source || "AI 生成"),
+        school: "广西医科大学口腔学院",
+        kg_nodes: steps.slice(0, state.step + 1)
+      });
+      setRecords(records);
+      refreshMetrics();
+      renderTeacher();
+      return { accuracy: acc, nextDifficulty: nextDifficultyAfter(c.difficulty || "初级", acc >= 80) };
+    }
+
+    function inferWeakPoints(text, answers = []) {
+      const weak = [];
+      if (!/部位|时间|症状/.test(text)) weak.push("主诉规范化");
+      if (!/疼痛|诱因|复发|治疗|全身|习惯/.test(text)) weak.push("现病史采集");
+      if (!/检查|视诊|触诊|探诊|目的|病损/.test(text)) weak.push("口腔检查设计");
+      if (!/辅助|活检|病理|影像|涂片|真菌|价值/.test(text)) weak.push("辅助检查选择");
+      if (!/诊断|依据/.test(text)) weak.push("诊断依据表达");
+      if (!/鉴别|白斑|红斑|念珠菌|苔藓/.test(text)) weak.push("鉴别诊断");
+      answers.filter(a => Number(a.score || 0) < 70).forEach(a => weak.push(steps[a.step]?.replace(/第 .*?步：/, "") || "临床思维训练"));
+      if (!/随访|复诊|教育|预后/.test(text)) weak.push("患者教育");
+      return weak.length ? [...new Set(weak)].join("、") : "暂无明显薄弱项";
+    }
+
+    function handleStudentSubmit(text) {
+      if (!state.studentLoggedIn) {
+        requireStudentLogin();
+        return;
+      }
+      addMessage("user", text);
+      if (/^(返回主菜单|退出|重新开始|换一个流程|主菜单|回到首页)$/.test(text)) {
+        resetToMenu();
+        return;
+      }
+      if (/^(换一个病例|重新调取|下一个病例)$/.test(text) && state.currentFlow === "flow_5") {
+        flow5Entry();
+        return;
+      }
+      if (/^(换一个病例|重新生成|下一个病例|换题)$/.test(text) && state.currentFlow === "flow_1") {
+        flow1Entry();
+        return;
+      }
+      if (state.currentFlow === "none") routeFromMenu(text);
+      else continueTraining(text);
+    }
+
+    function refreshMetrics() {
+      const training = getRecords().filter(r => r.type === "训练");
+      document.getElementById("caseCount").textContent = training.length;
+      const avg = training.length ? Math.round(training.reduce((s, r) => s + Number(r.accuracy || 0), 0) / training.length) : 0;
+      document.getElementById("avgScore").textContent = avg + "%";
+      updateDifficultyDisplay();
+    }
+
+    function startQuiz() {
+      if (!state.studentLoggedIn) {
+        document.getElementById("quizLoginNotice").textContent = "未登录：请先进入“学生训练”页输入学号并登录，然后再开始测试。";
+        document.getElementById("quizLoginNotice").classList.add("danger-text");
+        return;
+      }
+      const mode = document.getElementById("quizMode").value;
+      let pool = mode === "choice" ? choiceBank.map(x => ({ ...x, type: "choice" }))
+        : mode === "short" ? shortBank.map(x => ({ ...x, type: "short" }))
+        : [...choiceBank.map(x => ({ ...x, type: "choice" })), ...shortBank.map(x => ({ ...x, type: "short" }))];
+      state.quiz = pool.sort(() => Math.random() - .5).slice(0, 5);
+      state.quizIndex = 0;
+      state.quizAnswers = [];
+      renderQuizQuestion();
+    }
+
+    function renderQuizQuestion() {
+      const box = document.getElementById("quizBox");
+      const q = state.quiz[state.quizIndex];
+      document.getElementById("quizProgress").textContent = state.quiz.length ? `${state.quizIndex + 1} / ${state.quiz.length}` : "未开始";
+      if (!q) {
+        finishQuiz();
+        return;
+      }
+      if (q.type === "choice") {
+        box.innerHTML = `<div class="quiz-card"><b>选择题</b><p>${esc(q.q)}</p><div class="options">${q.options.map((op, i) => `<label class="option"><input type="radio" name="choice" value="${i}"><span>${esc(op)}</span></label>`).join("")}</div><p class="tag">来源：${esc(q.source)}</p></div><button class="btn" id="submitQuestion">提交本题</button>`;
+      } else {
+        box.innerHTML = `<div class="quiz-card"><b>问答题</b><p>${esc(q.q)}</p><textarea class="answer-box" id="shortAnswer" placeholder="请作答"></textarea><p class="tag">来源：${esc(q.source)}</p></div><button class="btn" id="submitQuestion">提交本题</button>`;
+      }
+      document.getElementById("submitQuestion").addEventListener("click", submitQuestion);
+    }
+
+    function submitQuestion() {
+      const q = state.quiz[state.quizIndex];
+      let answer = "";
+      let score = 0;
+      let feedback = "";
+      if (q.type === "choice") {
+        const picked = document.querySelector("input[name='choice']:checked");
+        if (!picked) return alert("请选择一个选项");
+        answer = q.options[Number(picked.value)];
+        score = Number(picked.value) === q.answer ? 100 : 0;
+        feedback = score === 100 ? "正确" : `参考答案：${q.options[q.answer]}`;
+      } else {
+        answer = document.getElementById("shortAnswer").value.trim();
+        if (!answer) return alert("请填写问答题答案");
+        score = keywordScore(answer, q.keys);
+        feedback = `参考要点：${q.ref}`;
+      }
+      state.quizAnswers.push({ q: q.q, answer, score, feedback, weak: q.weak, source: q.source, type: q.type });
+      state.quizIndex += 1;
+      renderQuizQuestion();
+    }
+
+    function finishQuiz() {
+      const box = document.getElementById("quizBox");
+      const type = document.getElementById("quizType").value;
+      const avg = Math.round(state.quizAnswers.reduce((s, a) => s + a.score, 0) / Math.max(state.quizAnswers.length, 1));
+      const weak = state.quizAnswers.filter(a => a.score < 80).map(a => a.weak);
+      const records = getRecords();
+      records.unshift({
+        fid: "QUIZ-" + Date.now(),
+        time: nowText(),
+        student: state.studentId,
+        type,
+        caseId: "斑纹类疾病随机题组",
+        analysis_complete: null,
+        accuracy: avg,
+        wrong_knowledge: weak.length ? [...new Set(weak)].join("、") : "暂无明显薄弱项",
+        weak: weak.length ? [...new Set(weak)].join("、") : "暂无明显薄弱项",
+        train_difficulty: "基础-中等",
+        case_category: "斑纹类疾病测试",
+        image_accuracy: null,
+        summary: state.quizAnswers.map((a, i) => `${i + 1}. ${a.q} 作答：${a.answer} 得分：${a.score}`).join(" | "),
+        source: "斑纹类疾病课程题库",
+        case_source: "斑纹类疾病课程题库",
+        school: "广西医科大学口腔学院"
+      });
+      setRecords(records);
+      box.innerHTML = `<div class="quiz-card"><h3>测试完成</h3><p>本次${esc(type)}平均得分：<b>${avg}%</b></p><p>薄弱知识点：${esc(weak.length ? [...new Set(weak)].join("、") : "暂无明显薄弱项")}</p></div>`;
+      document.getElementById("quizProgress").textContent = "已完成";
+      refreshMetrics();
+      renderTeacher();
+    }
+
+    function countItems(items) {
+      return items.reduce((acc, item) => {
+        const key = item || "未标注";
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+    }
+
+    function renderBarChart(containerId, counts, emptyText = "暂无数据") {
+      const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+      const max = Math.max(...entries.map(x => x[1]), 1);
+      document.getElementById(containerId).innerHTML = entries.length
+        ? entries.map(([name, value]) => `<div class="bar-row">
+            <span title="${esc(name)}">${esc(name).slice(0, 8)}</span>
+            <div class="bar-track"><div class="bar-fill" style="width:${Math.round(value / max * 100)}%"></div></div>
+            <b>${value}</b>
+          </div>`).join("")
+        : `<div class="auth-status">${emptyText}</div>`;
+    }
+
+    function renderTeacher() {
+      const studentFilter = document.getElementById("filterStudent")?.value.trim() || "";
+      const typeFilter = document.getElementById("filterType")?.value || "";
+      const records = getRecords();
+      const filtered = records.filter(r => (!studentFilter || r.student.includes(studentFilter)) && (!typeFilter || r.type === typeFilter));
+      const students = new Set(records.map(r => r.student));
+      const avg = records.length ? Math.round(records.reduce((s, r) => s + Number(r.accuracy || 0), 0) / records.length) : 0;
+      const weakWords = filtered.flatMap(r => String(r.weak || "").split("、")).filter(x => x && x !== "暂无明显薄弱项");
+      const weakCounts = countItems(weakWords);
+      const weakTop = Object.entries(weakCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(x => x[0]).join("、") || "暂无";
+      const difficultyCounts = countItems(filtered.map(r => r.train_difficulty || r.difficulty || (r.type === "训练" ? "未标注" : "测试")));
+      document.getElementById("teacherStudents").textContent = students.size;
+      document.getElementById("teacherSessions").textContent = records.length;
+      document.getElementById("teacherAccuracy").textContent = avg + "%";
+      document.getElementById("teacherWeak").textContent = weakTop;
+      renderBarChart("weakChart", weakCounts, "暂无薄弱模块记录");
+      renderBarChart("difficultyChart", difficultyCounts, "暂无难度记录");
+      document.getElementById("recordTable").innerHTML = filtered.map(r => `<tr>
+        <td>${esc(r.time)}</td>
+        <td>${esc(r.student)}</td>
+        <td>${esc(r.type)}</td>
+        <td>${esc(r.caseId)}<br><span class="tag">${esc(r.source || "")}</span></td>
+        <td class="${Number(r.accuracy) >= 80 ? "ok-text" : "danger-text"}">${esc(r.accuracy)}%</td>
+        <td>${esc(r.weak)}</td>
+        <td>${esc(r.summary || "").slice(0, 220)}</td>
+      </tr>`).join("") || `<tr><td colspan="7">暂无记录</td></tr>`;
+    }
+
+    function seedDemoData() {
+      const records = getRecords();
+      records.unshift(
+        { time: nowText(), student: "2026KQ001", type: "训练", caseId: "GXMU-KQ-KB-LP-001", accuracy: 86, weak: "鉴别诊断、辅助检查选择", train_difficulty: "初级", difficulty: "初级", summary: "主诉解析较完整，鉴别诊断漏答慢性盘状红斑狼疮。", source: "口腔医学知识库 - 扁平苔藓临床病例", school: "广西医科大学口腔学院" },
+        { time: nowText(), student: "2026KQ002", type: "课前测试", caseId: "斑纹类疾病随机题组", accuracy: 68, weak: "癌前病变与癌前状态、白斑癌变风险", train_difficulty: "基础-中等", summary: "问答题关键词覆盖不足。", source: "斑纹类疾病课程题库", school: "广西医科大学口腔学院" },
+        { time: nowText(), student: "2026KQ003", type: "训练", caseId: "AI-中级-牙周", accuracy: 74, weak: "现病史采集、口腔检查设计、患者教育", train_difficulty: "中级", difficulty: "中级", summary: "检查项目能列出，但目的说明不足，随访安排较笼统。", source: "AI 生成", school: "广西医科大学口腔学院" },
+        { time: nowText(), student: "2026KQ004", type: "课后测试", caseId: "斑纹类疾病随机题组", accuracy: 91, weak: "暂无明显薄弱项", train_difficulty: "基础-中等", summary: "选择题和问答题要点覆盖较完整。", source: "斑纹类疾病课程题库", school: "广西医科大学口腔学院" }
+      );
+      setRecords(records);
+      refreshMetrics();
+      renderTeacher();
+    }
+
+    document.getElementById("chatForm").addEventListener("submit", e => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      handleStudentSubmit(text);
+    });
+
+    document.getElementById("studentLoginBtn").addEventListener("click", () => {
+      const studentId = document.getElementById("studentLoginId").value.trim();
+      if (!studentId) {
+        document.getElementById("studentAuthStatus").textContent = "未登录：学号不能为空。";
+        return;
+      }
+      if (!document.getElementById("privacyConsent").checked) {
+        document.getElementById("studentAuthStatus").textContent = "请先勾选数据使用知情说明，再登录训练。";
+        return;
+      }
+      setStudentLogin(studentId);
+    });
+
+    document.getElementById("studentLoginId").addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        document.getElementById("studentLoginBtn").click();
+      }
+    });
+
+    caseImageInput.addEventListener("change", () => handleCaseImageUpload(caseImageInput.files));
+
+    document.getElementById("voiceInputBtn").addEventListener("click", () => {
+      if (!recognition) {
+        setVoiceStatus("当前浏览器不支持语音输入");
+        return;
+      }
+      if (state.recognizing) {
+        recognition.stop();
+        return;
+      }
+      try {
+        recognition.start();
+      } catch (e) {
+        setVoiceStatus("语音输入正在准备，请稍后再试");
+      }
+    });
+
+    document.getElementById("voiceReadBtn").addEventListener("click", () => {
+      state.voiceReadEnabled = !state.voiceReadEnabled;
+      document.getElementById("voiceReadBtn").classList.toggle("active", state.voiceReadEnabled);
+      const voice = selectPreferredVoice();
+      setVoiceStatus(state.voiceReadEnabled ? `已开启朗读：${voice?.name || "自动中文男声"}` : "已关闭助手回复朗读");
+      if (!state.voiceReadEnabled && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    });
+
+    voiceSelect.addEventListener("change", () => {
+      state.preferredVoiceName = voiceSelect.value;
+      const voice = selectPreferredVoice();
+      setVoiceStatus(`已选择音色：${voice?.name || "自动中文男声"}`);
+      if (state.voiceReadEnabled) speakAssistantText("好的，我会用这个声音继续带你完成临床思维训练。");
+    });
+
+    document.getElementById("stopVoiceBtn").addEventListener("click", () => {
+      if (recognition && state.recognizing) recognition.stop();
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      setVoiceStatus("语音已停止");
+    });
+
+    document.getElementById("teacherLoginBtn").addEventListener("click", () => {
+      const account = document.getElementById("teacherAccount").value.trim();
+      const password = document.getElementById("teacherPassword").value;
+      if (account === "admin" && password === "admin123") {
+        state.teacherLoggedIn = true;
+        document.getElementById("teacherPassword").value = "";
+        document.getElementById("teacherAuthStatus").textContent = "已登录。";
+        updateTeacherGate();
+      } else {
+        document.getElementById("teacherAuthStatus").textContent = "账号或密码不正确，请重新输入。";
+      }
+    });
+
+    document.getElementById("teacherPassword").addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        document.getElementById("teacherLoginBtn").click();
+      }
+    });
+
+    document.querySelectorAll(".choice").forEach(btn => {
+      btn.addEventListener("click", () => handleStudentSubmit(btn.dataset.pick));
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", () => resetToMenu());
+    document.getElementById("startQuizBtn").addEventListener("click", startQuiz);
+    document.getElementById("seedDemoBtn").addEventListener("click", seedDemoData);
+    document.getElementById("clearDataBtn").addEventListener("click", () => {
+      if (confirm("确认清空本机学情记录？")) {
+        setRecords([]);
+        refreshMetrics();
+        renderTeacher();
+      }
+    });
+    document.getElementById("filterStudent").addEventListener("input", renderTeacher);
+    document.getElementById("filterType").addEventListener("change", renderTeacher);
+    document.getElementById("lightbox").addEventListener("click", e => e.currentTarget.classList.remove("open"));
+
+    document.querySelectorAll(".nav button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".nav button").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById("studentView").classList.toggle("hidden", btn.dataset.view !== "student");
+        document.getElementById("quizView").classList.toggle("hidden", btn.dataset.view !== "quiz");
+        document.getElementById("teacherView").classList.toggle("hidden", btn.dataset.view !== "teacher");
+        if (btn.dataset.view === "teacher") updateTeacherGate();
+      });
+    });
+
+    restoreStudentLogin();
+    openAppDb().then(() => {
+      saveRecordsToDb(getRecords());
+      if (state.studentLoggedIn) saveStudentToDb(state.studentId);
+    });
+    initVoice();
+    initialGreeting();
+  </script>
+</body>
+</html>
