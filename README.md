@@ -8,15 +8,35 @@
 
 ## GitHub Pages 发布
 
-建议将仓库命名为 `kouqiang526`，发布分支选择 `main`，目录选择 `/root`。
-
-发布后的默认访问地址为：
+如果希望网址为：
 
 ```text
-https://<你的GitHub用户名>.github.io/kouqiang526/
+https://kouqiang526.github.io/
 ```
 
-如果需要自定义域名，需要先注册真实域名并在 GitHub Pages 中配置 DNS。仅 `kouqiang526` 不是一个可解析的公网域名。
+需要满足 GitHub Pages 的用户 / 组织主页规则：
+
+1. GitHub 用户名或组织名必须是 `kouqiang526`
+2. 仓库名必须是 `kouqiang526.github.io`
+3. 发布分支选择 `main`
+4. 发布目录选择 `/root`
+
+如果当前使用的是 `dashixiong153` 账号，则默认项目页只能是：
+
+```text
+https://dashixiong153.github.io/kouqiang526/
+```
+
+不能直接生成 `https://kouqiang526.github.io/`，除非创建或使用名为 `kouqiang526` 的 GitHub 账号 / 组织。
+
+推荐命令：
+
+```powershell
+gh auth login -h github.com
+gh repo create kouqiang526.github.io --public --source=. --remote=origin --push
+```
+
+然后在 GitHub 仓库 Settings → Pages 中选择 `main` 分支和 `/root` 目录。
 
 ## 数据说明
 
