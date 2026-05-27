@@ -4527,7 +4527,9 @@
         : '<tr><td colspan="4">暂无明显薄弱模块</td></tr>';
       const detailHtml = report.answerDetails.map((a, i) => {
         const ok = a.score >= 80;
-        return '<div class="question-review ' + (ok ? "correct" : "wrong") + '"><b>第 ' + (i + 1) + ' 题：' + esc(ok ? "已掌握" : "需复盘") + '</b><p>' + esc(a.q) + '</p><p>你的答案：' + esc(a.answer) + '</p><p>参考答案：' + esc(a.correctAnswer || "见解析") + '</p><p>答案解析：' + esc(a.explanation || a.feedback || "暂无解析") + '</p><p class="tag">知识点：' + esc(a.weak || "未标注") + '｜来源：' + esc(a.source || "课程题库") + '</p></div>';
+        const explanation = a.explanation || a.feedback || "";
+        const reviewText = explanation || ("知识点：" + (a.weak || "未标注"));
+        return '<div class="question-review ' + (ok ? "correct" : "wrong") + '"><b>第 ' + (i + 1) + ' 题：' + esc(ok ? "已掌握" : "需复盘") + '</b><p>' + esc(a.q) + '</p><p>你的答案：' + esc(a.answer) + '</p><p>参考答案：' + esc(a.correctAnswer || "见解析") + '</p><p>解析：' + esc(reviewText || "暂无解析") + '</p><p class="tag">来源：' + esc(a.source || "课程题库") + '</p></div>';
       }).join("");
       const surveyHtml = report.surveyAnswers?.filter(x => x.answer).length
         ? '<h4>问卷反馈</h4>' + report.surveyAnswers.filter(x => x.answer).map(x => '<p><b>' + esc(x.question) + '</b><br>' + esc(x.answer) + '</p>').join("")
@@ -4629,14 +4631,37 @@
       value = value.replace(/^知识点[:：]/, "").replace(/^考查/, "");
       value = value.split(/[；;。\n]/)[0].trim();
       if (/正确答案|答案解析|其他选项|解析[:：]|学生答案|参考答案/.test(value)) return "题目解析内容（已过滤）";
-      if (value.length > 28) value = value.slice(0, 28) + "…";
+      if (/龋病|牙体|牙髓|牙周|正畸|修复|种植|根管|根尖周|高血压|心血管|胃、十二指肠|消化道疾病|内分泌紊乱|地图舌|念珠菌|天疱疮|类天疱疮|多形红斑|复发性阿弗他|腺周口疮|带状疱疹|血疱|结核性溃疡|白色水肿|白色角化症|白色海绵状斑痣/.test(value)) {
+        return "非斑纹类干扰项（已过滤）";
+      }
+      if (/白斑/.test(value)) {
+        if (/癌变|恶变|癌前|潜在恶性|溃疡|皲裂|硬结|活检|高危|风险/.test(value)) return "白斑癌变风险与活检指征";
+        if (/均质|非均质|疣状|颗粒|皱纸|分型|类型|好发部位|舌腹|口底|口角|牙龈/.test(value)) return "白斑临床分型与好发部位";
+        if (/病因|烟|槟榔|刺激|机械摩擦|危险因素/.test(value)) return "白斑病因与危险因素";
+        return "白斑定义与诊断边界";
+      }
+      if (/扁平苔藓|苔藓样|Wickham|网状白纹|珠光白色/.test(value)) {
+        if (/病理|基底|液化|淋巴|带状浸润|胶样|角化/.test(value)) return "扁平苔藓病理特征";
+        if (/治疗|处理|随访|糜烂|激素|观察|心理|用药/.test(value)) return "扁平苔藓治疗与随访";
+        if (/鉴别|苔藓样|银汞|局部刺激/.test(value)) return "扁平苔藓鉴别诊断";
+        return "扁平苔藓临床表现";
+      }
+      if (/盘状红斑狼疮|红斑狼疮|蝶形红斑|日光照射/.test(value)) return "盘状红斑狼疮临床特征与诱因";
+      if (/黏膜下纤维|粘膜下纤维|槟榔|张口受限|纤维条索/.test(value)) return "口腔黏膜下纤维变性";
+      if (/红斑|口腔潜在恶性|癌前病变|癌前状态|恶性疾患/.test(value)) return "口腔潜在恶性疾患范围";
+      if (/上皮表层过度角化|角化|病理基础/.test(value)) return "斑纹类疾病病理基础";
+      if (/好发部位|颊黏膜|颊粘膜|唇红|舌腹|口底|口角/.test(value)) return "斑纹类疾病好发部位";
+      if (/鉴别|诊断|辅助检查|病理|活检/.test(value)) return "斑纹类疾病诊断与鉴别";
+      if (/治疗|处理|随访|去除刺激/.test(value)) return "斑纹类疾病治疗原则";
+      if (/教师上传题目|未标注模块/.test(value)) return "未标注模块";
+      if (value.length > 20) return "斑纹类疾病综合辨析";
       return value || "未标注模块";
     }
 
     function collectWeakLabels(record) {
       const fromReport = (record.report?.weakItems || record.report?.weakPoints || []).map(normalizeWeakLabel);
       const raw = String(record.weak || record.wrong_knowledge || "").split(/、|,|，|;|；/).map(normalizeWeakLabel);
-      return [...fromReport, ...raw].filter(x => x && x !== "暂无明显薄弱项" && x !== "暂无明显薄弱点" && x !== "题目解析内容（已过滤）");
+      return [...fromReport, ...raw].filter(x => x && x !== "暂无明显薄弱项" && x !== "暂无明显薄弱点" && x !== "题目解析内容（已过滤）" && x !== "非斑纹类干扰项（已过滤）" && x !== "未标注模块");
     }
 
     function avgOf(records) {
