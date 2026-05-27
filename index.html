@@ -3465,84 +3465,150 @@
     }
 
     function assessStepAnswer(text, step) {
-      const clean = text.replace(/\s+/g, "");
-      const checksByStep = {
-        0: [
-          { name: "核心症状", words: ["症状", "疼痛", "痛", "溃烂", "白纹", "冷热痛", "出血", "糜烂"] },
-          { name: "发病部位", words: ["部位", "双颊", "颊", "舌", "牙", "牙龈", "口腔", "后牙", "右下", "左颊"] },
-          { name: "持续时间", words: ["时间", "天", "周", "月", "年", "余"] },
-          { name: "主诉规范判断", words: ["规范", "符合", "不符合", "主诉"] }
-        ],
-        1: [
-          { name: "病变部位", words: ["部位", "颊", "舌", "唇", "牙龈", "口腔"] },
-          { name: "色泽", words: ["色", "白", "红", "珠光", "充血"] },
-          { name: "形态", words: ["形态", "网状", "条纹", "斑块", "糜烂", "溃疡"] },
-          { name: "边界或范围", words: ["边界", "范围", "双侧", "对称", "局限", "弥散"] }
-        ],
-        2: [
-          { name: "起病与病程", words: ["何时", "多久", "病程", "发病", "时间"] },
-          { name: "疼痛与诱因", words: ["疼痛", "刺激", "进食", "冷热", "辛辣", "诱因"] },
-          { name: "复发与治疗史", words: ["反复", "复发", "治疗", "用药", "外院"] },
-          { name: "全身与习惯", words: ["全身", "糖尿病", "吸烟", "饮酒", "槟榔", "药物", "过敏"] }
-        ],
-        3: [
-          { name: "视诊/病损检查", words: ["视诊", "部位", "形态", "色泽", "范围", "边界", "病损"] },
-          { name: "触诊/探诊", words: ["触诊", "探诊", "质地", "压痛", "触痛"] },
-          { name: "局部刺激因素", words: ["残根", "残冠", "修复体", "牙石", "咬合", "刺激"] },
-          { name: "检查目的", words: ["目的", "判断", "明确", "评估", "鉴别"] }
-        ],
-        4: [
-          { name: "辅助检查名称", words: ["活检", "病理", "影像", "根尖片", "涂片", "真菌", "血糖", "实验室"] },
-          { name: "诊断价值", words: ["价值", "明确", "确诊", "排除", "鉴别", "判断"] },
-          { name: "适应证或原因", words: ["因为", "由于", "长期", "不愈", "癌变", "糜烂"] }
-        ],
-        5: [
-          { name: "初步诊断", words: ["诊断", "扁平苔藓", "牙髓炎", "牙周炎", "苔藓样", "白斑"] },
-          { name: "诊断依据", words: ["依据", "主诉", "病史", "检查", "辅助", "病理"] }
-        ],
-        6: [
-          { name: "鉴别对象", words: ["鉴别", "白斑", "红斑", "念珠菌", "红斑狼疮", "苔藓样", "类天疱疮"] },
-          { name: "关键鉴别点", words: ["区别", "特点", "是否", "可擦去", "病理", "部位", "对称"] }
-        ],
-        7: [
-          { name: "治疗原则", words: ["治疗", "原则", "去除刺激", "控制", "抗炎", "随访", "活检"] },
-          { name: "治疗顺序", words: ["顺序", "先", "再", "必要时", "局部", "全身"] },
-          { name: "随访安排", words: ["随访", "复诊", "观察", "复查"] }
-        ],
-        8: [
-          { name: "预后", words: ["预后", "复发", "风险", "并发症"] },
-          { name: "患者教育", words: ["教育", "戒烟", "口腔卫生", "辛辣", "复诊", "随访"] }
-        ]
-      };
-      const checks = checksByStep[step] || [];
-      const hit = checks.filter(c => hasAny(clean, c.words));
-      const minLen = step === 5 ? 12 : 18;
-      const lengthOk = clean.length >= minLen;
-      const requiredHits = step === 5 ? 2 : Math.min(3, checks.length);
-      const enough = lengthOk && hit.length >= requiredHits;
-      const score = Math.min(100, Math.round((hit.length / Math.max(checks.length, 1)) * 80 + (lengthOk ? 20 : 0)));
-      const missing = checks.filter(c => !hit.includes(c)).map(c => c.name);
-      return { enough, score, missing };
+      const raw = String(text || "").trim();
+      const clean = raw.replace(/\s+/g, "");
+      const c = state.case || {};
+      const rules = getStepAssessmentRules(step, c);
+      const hit = rules.checks.filter(item => hasAny(clean, item.words));
+      const missing = rules.checks.filter(item => !hit.includes(item)).map(item => item.name);
+      const severeIssues = detectSevereTrainingIssues(raw, step);
+      const minorIssues = detectMinorTrainingIssues(raw, step);
+      let score = Math.round((hit.length / Math.max(rules.checks.length, 1)) * 72 + Math.min(clean.length / Math.max(rules.minLen, 1), 1) * 18 + 10);
+
+      if (step === 5 && c.diagnosis) {
+        const diagnosisMatched = diagnosisMatches(clean, c.diagnosis);
+        if (!diagnosisMatched) {
+          severeIssues.push("初步诊断未与本病例标准诊断相符，不能仅写宽泛诊断或其他疾病名称");
+          score = Math.min(score, 55);
+        }
+      }
+      if (severeIssues.length) score = Math.min(score - severeIssues.length * 12, 55);
+      if (minorIssues.length) score = Math.min(score - minorIssues.length * 6, 82);
+      if (missing.length) score = Math.min(score, Math.max(45, 100 - missing.length * 12));
+      if (hit.length < rules.requiredHits) score = Math.min(score, 68);
+      if (clean.length < rules.minLen) score = Math.min(score, 55);
+      score = Math.max(0, Math.min(100, Math.round(score)));
+
+      const enough = score >= rules.passScore && severeIssues.length === 0 && hit.length >= rules.requiredHits && clean.length >= rules.minLen;
+      const strengths = hit.map(item => item.name);
+      const issues = severeIssues.concat(minorIssues, missing.map(item => "缺少：" + item));
+      const suggestion = buildStepSuggestion(step, missing, severeIssues, minorIssues);
+      return { enough, score, missing, strengths, issues, suggestion, passScore: rules.passScore };
     }
 
-    function guidanceForStep(step, missing) {
-      const tips = {
-        0: "请按“核心症状、发病部位、持续时间、是否符合主诉规范”四点重新回答。",
-        1: "请按“病变部位、色泽、形态、范围/边界、与周围组织关系”重新描述图片。",
-        2: "请至少列出 5 项现病史追问，覆盖起病时间、疼痛特点、诱因、复发/治疗史、全身情况或不良习惯。",
-        3: "请列出口腔检查项目，并说明每项检查目的，例如视诊、触诊、探诊、局部刺激因素检查等。",
-        4: "请写出要申请的辅助检查，并说明诊断价值，例如活检病理、真菌检查、影像或相关实验室检查。",
-        5: "请明确写出初步诊断，并列出至少 2 条诊断依据。",
-        6: "请列出需要鉴别的疾病，并分别写出关键鉴别点。",
-        7: "请说明治疗原则、治疗顺序和随访安排。",
-        8: "请说明预后、复发/并发症风险和患者教育重点。"
+    function getStepAssessmentRules(step, c = {}) {
+      const base = {
+        0: { minLen: 24, requiredHits: 4, passScore: 70, checks: [
+          { name: "核心症状", words: ["症状", "疼痛", "痛", "糜烂", "白纹", "白斑", "红斑", "粗糙", "出血"] },
+          { name: "发病部位", words: ["部位", "颊", "舌", "唇", "牙龈", "口腔", "双侧", "左", "右"] },
+          { name: "持续时间", words: ["时间", "天", "周", "月", "年", "持续", "反复"] },
+          { name: "主诉规范判断", words: ["主诉", "规范", "符合", "不符合", "简洁", "症状", "部位", "时间"] }
+        ] },
+        1: { minLen: 28, requiredHits: 4, passScore: 70, checks: [
+          { name: "病变部位", words: ["部位", "颊", "舌", "唇", "牙龈", "口腔"] },
+          { name: "色泽", words: ["色", "白", "红", "珠光", "灰白", "充血"] },
+          { name: "形态", words: ["形态", "网状", "条纹", "斑块", "丘疹", "糜烂", "溃疡"] },
+          { name: "范围边界", words: ["范围", "边界", "双侧", "对称", "局限", "弥散"] }
+        ] },
+        2: { minLen: 36, requiredHits: 4, passScore: 70, checks: [
+          { name: "起病与病程", words: ["何时", "多久", "病程", "发病", "时间", "持续"] },
+          { name: "疼痛与诱因", words: ["疼痛", "刺激", "进食", "冷热", "辛辣", "诱因"] },
+          { name: "复发与治疗史", words: ["反复", "复发", "治疗", "用药", "外院"] },
+          { name: "全身情况与习惯", words: ["全身", "糖尿病", "吸烟", "饮酒", "槟榔", "药物", "过敏", "精神", "免疫"] },
+          { name: "局部刺激因素", words: ["残根", "残冠", "修复体", "牙石", "咬伤", "刺激"] }
+        ] },
+        3: { minLen: 40, requiredHits: 4, passScore: 70, checks: [
+          { name: "视诊与病损描述", words: ["视诊", "部位", "形态", "色泽", "范围", "边界", "病损"] },
+          { name: "触诊或探诊", words: ["触诊", "探诊", "质地", "压痛", "触痛", "硬结", "擦拭"] },
+          { name: "局部刺激因素检查", words: ["残根", "残冠", "修复体", "牙石", "咬合", "刺激", "锐利"] },
+          { name: "检查目的", words: ["目的", "判断", "明确", "评估", "鉴别", "排除"] },
+          { name: "安全与必要性", words: ["必要", "先", "避免", "不直接", "根据", "风险"] }
+        ] },
+        4: { minLen: 36, requiredHits: 3, passScore: 70, checks: [
+          { name: "辅助检查名称", words: ["活检", "病理", "影像", "根尖片", "涂片", "真菌", "血液", "实验室"] },
+          { name: "诊断价值", words: ["价值", "明确", "确诊", "排除", "鉴别", "判断"] },
+          { name: "适应证或原因", words: ["因为", "由于", "长期", "不愈", "癌变", "糜烂", "疼痛"] }
+        ] },
+        5: { minLen: 28, requiredHits: 2, passScore: 72, checks: [
+          { name: "明确初步诊断", words: ["诊断", "扁平苔藓", "白斑", "红斑", "念珠菌", "纤维化", "盘状红斑狼疮", "阿弗他"] },
+          { name: "诊断依据", words: ["依据", "主诉", "病史", "检查", "辅助", "病理", "表现"] }
+        ] },
+        6: { minLen: 36, requiredHits: 2, passScore: 70, checks: [
+          { name: "鉴别对象", words: ["鉴别", "白斑", "红斑", "念珠菌", "苔藓样", "红斑狼疮", "类天疱疮", "癌"] },
+          { name: "关键鉴别点", words: ["区别", "特点", "是否", "可擦去", "病理", "部位", "对称", "疼痛"] }
+        ] },
+        7: { minLen: 50, requiredHits: 4, passScore: 70, checks: [
+          { name: "治疗原则", words: ["治疗", "原则", "去除刺激", "控制", "抗炎", "随访", "活检", "病因"] },
+          { name: "治疗顺序", words: ["顺序", "先", "再", "必要时", "局部", "全身", "分层"] },
+          { name: "随访安排", words: ["随访", "复诊", "观察", "复查", "监测"] },
+          { name: "安全边界", words: ["避免", "不宜", "风险", "转诊", "会诊", "病理", "个体化"] },
+          { name: "患者教育或诱因控制", words: ["教育", "戒烟", "戒酒", "辛辣", "口腔卫生", "精神", "刺激"] }
+        ] },
+        8: { minLen: 36, requiredHits: 2, passScore: 70, checks: [
+          { name: "预后与复发", words: ["预后", "复发", "风险", "并发症", "癌变"] },
+          { name: "患者教育", words: ["教育", "戒烟", "口腔卫生", "辛辣", "复诊", "随访"] }
+        ] }
       };
-      const missingText = missing.length ? `目前缺少：${missing.join("、")}。` : "";
-      return `${missingText}${tips[step] || "请围绕当前任务补充回答。"}`;
+      return base[step] || { minLen: 30, requiredHits: 2, passScore: 70, checks: [] };
+    }
+
+    function detectSevereTrainingIssues(text, step) {
+      const issues = [];
+      const clean = text.replace(/\s+/g, "");
+      if (/错误回答示例|错误示范|反面示例|关键偏差|不规范答案/.test(clean)) issues.push("提交内容像是在列举错误示例，而不是给出自己的规范作答");
+      if (/直接安排全身CT|直接做全身CT|排除全身肿瘤/.test(clean)) issues.push("辅助检查过度，不能把全身 CT 作为常规口腔黏膜病首选检查");
+      if (/直接手术切除所有|不管是否|盲目手术|立即切除全部/.test(clean)) issues.push("治疗过于激进，未先明确诊断和病损风险分层");
+      if (/长期口服.*激素|强效激素长期口服|不用监测血糖|不用监测血压/.test(clean)) issues.push("激素使用方案存在安全隐患，需监测并严格掌握适应证");
+      if (/不用随访|无需随访|不复诊|无需复诊|不监测/.test(clean)) issues.push("缺少随访监测，不能早期发现复发、恶变或治疗不良反应");
+      if (/不问病史|不需要问诊|无需检查|不用检查/.test(clean)) issues.push("忽略问诊或检查步骤，不符合临床思维训练要求");
+      if (step === 7 && /所有药物同时使用|多种强效药物.*一起|一次性使用多种/.test(clean)) issues.push("治疗缺少阶梯和优先级，易造成不良反应或疗效判断困难");
+      if (step === 3 && /只做漱口|含漱.*唯一|不检查黏膜|跳过黏膜检查/.test(clean)) issues.push("口腔检查设计偏离任务，不能用处理措施替代检查");
+      return issues;
+    }
+
+    function detectMinorTrainingIssues(text, step) {
+      const issues = [];
+      const clean = text.replace(/\s+/g, "");
+      if (/随机|随便|大概|差不多|不知道/.test(clean)) issues.push("表述过于笼统，缺少明确临床依据");
+      if (step >= 3 && !/目的|判断|明确|评估|鉴别|价值|依据/.test(clean)) issues.push("列出项目后未说明临床目的或诊断价值");
+      if (step === 7 && !/随访|复诊|复查|观察|监测/.test(clean)) issues.push("治疗方案缺少随访安排");
+      return issues;
+    }
+
+    function diagnosisMatches(clean, diagnosis) {
+      const dx = String(diagnosis || "").replace(/\s+/g, "");
+      const synonyms = [
+        ["口腔扁平苔藓", ["扁平苔藓", "OLP", "口腔扁平苔藓"]],
+        ["口腔白斑", ["白斑", "口腔白斑"]],
+        ["口腔红斑", ["红斑", "口腔红斑"]],
+        ["慢性盘状红斑狼疮", ["盘状红斑狼疮", "红斑狼疮"]],
+        ["口腔黏膜下纤维化", ["黏膜下纤维化", "粘膜下纤维化", "纤维化"]],
+        ["念珠菌", ["念珠菌", "真菌"]],
+        ["阿弗他", ["阿弗他", "复发性口疮", "口疮"]]
+      ];
+      const matched = synonyms.find(([key]) => dx.includes(key) || key.includes(dx));
+      const words = matched ? matched[1] : [dx];
+      return words.some(word => word && clean.includes(word));
+    }
+
+    function buildStepSuggestion(step, missing, severeIssues, minorIssues) {
+      const tips = {
+        0: "请按“核心症状、发病部位、持续时间、主诉是否规范”重新组织答案。",
+        1: "请按“部位、色泽、形态、范围/边界、与周围组织关系”描述图片。",
+        2: "请至少列出 5 项现病史追问，覆盖病程、疼痛/诱因、复发治疗史、全身情况和不良习惯。",
+        3: "请列出口腔检查项目，并说明每项检查目的；不能用治疗或辅助检查替代口腔专科检查。",
+        4: "请写明辅助检查名称和诊断价值，重点说明为何需要活检、真菌检查、影像或实验室检查。",
+        5: "请明确写出初步诊断，并用主诉、病史、口腔检查和辅助检查结果逐条支撑。",
+        6: "请列出需要鉴别的疾病，并分别写出关键鉴别点。",
+        7: "请按“治疗原则、治疗顺序、随访安排、风险控制和患者教育”重新设计方案。",
+        8: "请说明预后、复发/癌变或并发症风险，以及患者教育和随访重点。"
+      };
+      const problemText = severeIssues.concat(minorIssues, missing.map(x => "缺少" + x)).join("；");
+      return (problemText ? "主要问题：" + problemText + "。" : "") + (tips[step] || "请围绕当前任务补充回答。");
     }
 
     function rejectLowQualityAnswer(step, assessment) {
-      addMessage("assistant", `💡 这一步暂不计分，也不会进入下一步。\n\n你的回答与当前训练任务匹配度约 ${assessment.score}%，信息不足或偏离任务。${guidanceForStep(step, assessment.missing)}\n\n📝 请重新回答当前步骤。\n\n📍 当前知识图谱节点：${steps[step]?.replace(/第 .*?步：/, "") || "临床思维训练"}`);
+      addMessage("assistant", "💡 这一步暂不计分，也不会进入下一步。\n\n你的回答当前得分为 " + assessment.score + "%（进入下一步至少需要 " + assessment.passScore + "%）。" + assessment.suggestion + "\n\n📝 请重新回答当前步骤。\n\n📍 当前知识图谱节点：" + (steps[step]?.replace(/第 .*?步：/, "") || "临床思维训练"));
     }
 
     function continueTraining(text) {
@@ -3561,7 +3627,7 @@
         rejectLowQualityAnswer(state.step, assessment);
         return;
       }
-      state.answers.push({ step: state.step, text, score: assessment.score, missing: assessment.missing });
+      state.answers.push({ step: state.step, text, score: assessment.score, missing: assessment.missing, strengths: assessment.strengths, issues: assessment.issues, suggestion: assessment.suggestion, passed: assessment.enough });
       state.answerScores.push(assessment.score);
       if (state.currentFlow === "flow_4") {
         handleImageTraining(text);
@@ -3666,12 +3732,40 @@
       if (state.step === 8) saveTrainingRecord();
     }
 
+    function buildTrainingReport(answers, accuracy, weakText) {
+      const weakSteps = answers.filter(a => Number(a.score || 0) < 80 || (a.issues || []).length);
+      const weakItems = [...new Set(weakSteps.flatMap(a => (a.issues && a.issues.length ? a.issues : (a.missing || []).map(x => "缺少：" + x))))].slice(0, 8);
+      const stepRows = answers.map((a, i) => ({
+        index: i + 1,
+        step: steps[a.step] || "训练步骤",
+        score: a.score,
+        answer: a.text,
+        strengths: a.strengths || [],
+        issues: a.issues || [],
+        suggestion: a.suggestion || "继续按当前步骤补充临床依据。"
+      }));
+      const problemSummary = weakSteps.length
+        ? "本次训练综合得分 " + accuracy + "%；主要问题集中在 " + weakSteps.map(a => (steps[a.step] || "训练步骤").replace(/第 .*?步：/, "")).slice(0, 4).join("、") + "。"
+        : "本次训练综合得分 " + accuracy + "%；各步骤回答较完整，暂未发现明显薄弱环节。";
+      const remediation = weakSteps.length
+        ? weakSteps.slice(0, 4).map(a => (steps[a.step] || "训练步骤") + "：" + (a.suggestion || "补充临床依据和安全边界。"))
+        : ["保持分步推理习惯，继续练习同类病例的诊断依据、鉴别诊断和随访管理。"];
+      return {
+        title: "学生训练学情报告",
+        problemSummary,
+        weakItems: weakItems.length ? weakItems : ["暂无明显薄弱点"],
+        remediation,
+        stepRows
+      };
+    }
+
     function saveTrainingRecord() {
       const records = getRecords();
       const c = state.case || {};
       const scoreList = state.answerScores.length ? state.answerScores : state.answers.map(a => Number(a.score || 0));
       const acc = scoreList.length ? Math.round(scoreList.reduce((s, n) => s + Number(n || 0), 0) / scoreList.length) : 0;
       const weakText = inferWeakPoints(state.answers.map(a => a.text).join(" "), state.answers);
+      const trainingReport = buildTrainingReport(state.answers, acc, weakText);
       records.unshift({
         fid: c.id || "TRAIN-" + Date.now(),
         time: nowText(),
@@ -3685,9 +3779,11 @@
         train_difficulty: c.difficulty || "中",
         difficulty: c.difficulty || "中",
         case_category: c.category || "口腔临床综合",
-        image_accuracy: ["flow_4", "flow_5"].includes(state.currentFlow) ? Math.min(95, 60 + state.answers.length * 4) : null,
-        summary: state.answers.map((a, i) => (i + 1) + ". " + (steps[a.step] || "训练步骤") + "：" + a.text + "；得分：" + (a.score ?? "")).join(" | "),
-        answer_details: state.answers.map((a, i) => ({ index: i + 1, step: steps[a.step] || "训练步骤", answer: a.text, score: a.score })),
+        image_accuracy: ["flow_4", "flow_5"].includes(state.currentFlow) ? (state.answers.find(a => a.step === 1)?.score ?? null) : null,
+        report: trainingReport,
+        report_text: trainingReport.problemSummary + " 改进建议：" + trainingReport.remediation.join("；"),
+        summary: state.answers.map((a, i) => (i + 1) + ". " + (steps[a.step] || "训练步骤") + "：" + a.text + "；得分：" + (a.score ?? "") + "；问题：" + ((a.issues || []).join("、") || "暂无明显问题") + "；建议：" + (a.suggestion || "继续完善")).join(" | "),
+        answer_details: state.answers.map((a, i) => ({ index: i + 1, step: steps[a.step] || "训练步骤", answer: a.text, score: a.score, strengths: a.strengths || [], issues: a.issues || [], suggestion: a.suggestion || "" })),
         source: c.source || "AI 生成",
         case_source: state.currentFlow === "flow_5" ? `口腔医学知识库 - ${c.id}` : (c.source || "AI 生成"),
         school: "广西医科大学口腔学院",
@@ -4166,7 +4262,7 @@
         return quizDetails.map((a, i) => '<div class="question-review ' + (Number(a.score) >= 80 ? "correct" : "wrong") + '"><b>第 ' + (i + 1) + ' 题</b><p>' + esc(a.q) + '</p><p>学生答案：' + esc(a.answer) + '</p><p>参考答案：' + esc(a.correctAnswer || "见解析") + '</p><p>得分：' + esc(a.score) + '</p><p>解析：' + esc(a.explanation || a.feedback || "") + '</p></div>').join("");
       }
       if (trainingDetails.length) {
-        return trainingDetails.map(a => '<div class="question-review"><b>' + esc(a.step || ("第 " + a.index + " 步")) + '</b><p>学生回答：' + esc(a.answer || "") + '</p><p>得分：' + esc(a.score ?? "未评分") + '</p></div>').join("");
+        return trainingDetails.map(a => '<div class="question-review ' + (Number(a.score || 0) >= 80 ? "correct" : "wrong") + '"><b>' + esc(a.step || ("第 " + a.index + " 步")) + '</b><p>学生回答：' + esc(a.answer || "") + '</p><p>得分：' + esc(a.score ?? "未评分") + '</p><p>评价：' + esc((a.strengths || []).length ? "已覆盖：" + (a.strengths || []).join("、") : "覆盖不足") + '</p><p>错误/缺失：' + esc((a.issues || []).join("；") || "暂无明显错误") + '</p><p>改进建议：' + esc(a.suggestion || "继续补充临床依据和安全边界。") + '</p></div>').join("");
       }
       return '<p>' + esc(record.summary || "暂无详细作答记录") + '</p>';
     }
@@ -4177,7 +4273,7 @@
       document.querySelectorAll("#teacherContent > .topbar, #teacherContent > section.panel:not(#teacherDetailPage)").forEach(el => el.classList.add("hidden"));
       document.getElementById("teacherDetailPage").classList.remove("hidden");
       const reportBlock = record.report?.problemSummary
-        ? '<h4>问题概览</h4><p>' + esc(record.report.problemSummary) + '</p><h4>薄弱模块与知识点</h4><p>' + esc((record.report.weakItems || record.report.weakPoints || []).join("、")) + '</p><h4>学习建议</h4><ol>' + (record.report.remediation || []).map(x => '<li>' + esc(x) + '</li>').join("") + '</ol>'
+        ? '<h4>问题概览</h4><p>' + esc(record.report.problemSummary) + '</p><h4>薄弱模块与知识点</h4><p>' + esc((record.report.weakItems || record.report.weakPoints || []).join("、")) + '</p><h4>改进建议</h4><ol>' + (record.report.remediation || []).map(x => '<li>' + esc(x) + '</li>').join("") + '</ol>'
         : '<p>学情报告：' + esc(record.report_text || record.report?.weakPoints?.join("、") || "暂无报告") + '</p>';
       document.getElementById("teacherDetailContent").innerHTML = '<div class="report-card"><h3>' + esc(record.student) + ' - ' + esc(record.type) + '</h3><div class="report-grid"><div class="report-metric">得分<b>' + esc(record.accuracy) + '%</b></div><div class="report-metric">薄弱模块<b>' + esc(record.weak || "暂无") + '</b></div><div class="report-metric">来源<b>' + esc(record.source || record.case_source || "未标注") + '</b></div></div><p>时间：' + esc(record.time) + '</p><p>病例/题组：' + esc(record.caseId) + '</p>' + reportBlock + '</div>' + buildRecordDetailHtml(record);
     }
