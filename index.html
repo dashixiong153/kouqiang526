@@ -1118,6 +1118,13 @@
             </div>
           </div>
         </section>
+        <section class="panel hidden" id="teacherDetailPage">
+          <div class="panel-head">
+            <h3>学生具体作答详情</h3>
+            <button class="btn secondary" id="backTeacherListBtn" type="button">返回学情列表</button>
+          </div>
+          <div class="panel-body stack" id="teacherDetailContent"></div>
+        </section>
         </div>
       </section>
     </main>
@@ -3775,8 +3782,8 @@
     function renderQuizQuestion() {
       const box = document.getElementById("quizBox");
       const q = state.quiz[state.quizIndex];
-      document.getElementById("quizProgress").textContent = state.quiz.length ? state.activeQuizType + " " + (state.quizIndex + 1) + " / " + state.quiz.length : "未开始";
       if (!q) { finishQuiz(); return; }
+      document.getElementById("quizProgress").textContent = state.quiz.length ? state.activeQuizType + " " + (state.quizIndex + 1) + " / " + state.quiz.length : "未开始";
       if (q.type === "choice") {
         box.innerHTML = '<div class="quiz-card"><b>选择题</b><p>' + esc(q.q) + '</p><div class="options">' + q.options.map((op, i) => '<label class="option"><input type="radio" name="choice" value="' + i + '"><span>' + esc(op) + '</span></label>').join("") + '</div><p class="tag">来源：' + esc(q.source || "课程题库") + '</p></div><button class="btn" id="submitQuestion">提交本题</button>';
       } else {
@@ -3790,7 +3797,6 @@
       if (q.analysis && q.analysis.trim()) return q.analysis.trim();
       if (q.type !== "choice") return q.ref || "请对照参考要点，检查是否覆盖定义、临床表现、诊断依据、鉴别诊断和处理原则。";
       const correct = q.options[q.answer] || "";
-      const wrongOptions = q.options.filter((op, i) => i !== q.answer).join("；");
       const stem = q.q || "";
       const module = q.weak || "本题相关知识点";
       const isNegative = /不正确|错误|不属于|不是|除外|无关/.test(stem);
@@ -3804,7 +3810,34 @@
       else if (isDiagnosis) focus = "本题考查诊断思路，应把主诉、病史、口腔检查和必要辅助检查串联起来，注意与相似白色或红色病损鉴别。";
       else if (isTreatment) focus = "本题考查处理原则，应从去除刺激因素、控制症状、明确诊断、风险评估和定期随访几个层面判断。";
       if (isNegative) focus += " 题干属于否定式提问，要选择与规范表述不相符的一项。";
-      return "本题对应薄弱模块为“" + module + "”。正确答案为“" + correct + "”。" + focus + (score === 100 ? "你的选择与参考答案一致。" : "你的答案为“" + selectedAnswer + "”，需要回到题干关键词重新判断。") + (wrongOptions ? "其他选项的干扰点在于容易与“" + wrongOptions + "”等相近概念混淆，复盘时建议逐项写出排除理由。" : "");
+      const optionReviews = q.options.map((op, i) => {
+        const label = String.fromCharCode(65 + i);
+        const reason = describeOptionReason(stem, op, i === q.answer, isNegative);
+        return label + "项“" + op + "”：" + reason;
+      }).join(" ");
+      return "本题对应薄弱模块为“" + module + "”。正确答案为“" + correct + "”。" + focus + (score === 100 ? "你的选择与参考答案一致。" : "你的答案为“" + selectedAnswer + "”，与参考答案不一致，需要重点复盘。") + " 逐项解析：" + optionReviews;
+    }
+
+    function describeOptionReason(stem, option, isCorrect, isNegative) {
+      const facts = [
+        [/白斑/, "口腔白斑属于不能诊断为其他疾病的白色斑块，重点关注擦不去、长期存在及癌变风险。"],
+        [/红斑/, "口腔红斑临床上红色病损更突出，恶变风险高，但与白色网纹或可擦去白膜并不等同。"],
+        [/扁平苔藓|OLP/, "口腔扁平苔藓常见珠光白色网纹、丘疹或糜烂，可有对称多部位受累，诊断需结合临床和必要病理。"],
+        [/念珠菌|真菌/, "念珠菌感染常表现为白色假膜或红斑，可伴灼痛，假膜型病损多可擦去并露出红色黏膜。"],
+        [/癌前|恶变|癌变/, "癌前病变或癌前状态的判断核心是长期存在、上皮异常增生风险和随访/活检必要性。"],
+        [/活检|病理/, "活检病理用于明确上皮异常增生、癌变或免疫相关改变，是诊断不明或高危病损的重要依据。"],
+        [/创伤/, "创伤性病损通常有明确机械刺激或咬伤史，去除刺激后应逐渐好转，长期不愈需进一步检查。"],
+        [/阿弗他|复发性口疮/, "复发性阿弗他溃疡多为反复发作的圆形浅溃疡，黄白假膜、红晕和明显疼痛较典型。"],
+        [/盘状红斑狼疮|红斑狼疮/, "慢性盘状红斑狼疮常见中央萎缩、周围放射状白纹和充血糜烂，需与扁平苔藓和白斑鉴别。"],
+        [/黏膜下纤维|纤维性变/, "口腔黏膜下纤维性变与咀嚼槟榔等习惯相关，表现为黏膜苍白、纤维条索和张口受限。"],
+        [/天疱疮/, "天疱疮属于自身免疫性疱病，可见糜烂、松弛性疱或尼氏征阳性，诊断依赖病理和免疫学证据。"],
+        [/类天疱疮/, "黏膜类天疱疮常表现为较紧张的疱和糜烂，瘢痕风险较高，与扁平苔藓样白纹不是同一诊断。"]
+      ];
+      const fact = facts.find(([pattern]) => pattern.test(option))?.[1] || "该选项需要与题干限定的病损性质、部位、病程、能否擦去、疼痛特点和诊断目的逐项比对。";
+      if (isCorrect) {
+        return (isNegative ? "它正是题干要求排除或指出错误的内容。" : "它与题干要求最匹配。") + fact;
+      }
+      return (isNegative ? "它并不是本题最应选择的错误项，原因是：" : "它不符合题干核心条件，主要错在：") + fact;
     }
 
     function submitQuestion() {
@@ -4178,8 +4211,8 @@
     function renderQuizQuestion() {
       const box = document.getElementById("quizBox");
       const q = state.quiz[state.quizIndex];
-      document.getElementById("quizProgress").textContent = state.quiz.length ? state.activeQuizType + " " + (state.quizIndex + 1) + " / " + state.quiz.length : "未开始";
       if (!q) { finishQuiz(); return; }
+      document.getElementById("quizProgress").textContent = state.quiz.length ? state.activeQuizType + " " + (state.quizIndex + 1) + " / " + state.quiz.length : "未开始";
       if (q.type === "choice") {
         box.innerHTML = '<div class="quiz-card"><b>选择题</b><p>' + esc(q.q) + '</p><div class="options">' + q.options.map((op, i) => '<label class="option"><input type="radio" name="choice" value="' + i + '"><span>' + esc(op) + '</span></label>').join("") + '</div><p class="tag">来源：' + esc(q.source || "课程题库") + '</p></div><button class="btn" id="submitQuestion">提交本题</button>';
       } else {
@@ -4270,6 +4303,8 @@
     function finishQuiz() {
       const box = document.getElementById("quizBox");
       const type = state.activeQuizType;
+      const cfg = getQuizConfig(type);
+      const quizSource = cfg.sourceMode === "uploaded" ? "教师上传题库" : cfg.sourceMode === "mixed" ? "斑纹类疾病课程题库 + 教师上传题库" : "斑纹类疾病课程题库";
       const avg = Math.round(state.quizAnswers.reduce((s, a) => s + a.score, 0) / Math.max(state.quizAnswers.length, 1));
       const weak = state.quizAnswers.filter(a => a.score < 80).map(a => a.weak);
       const weakText = weak.length ? [...new Set(weak)].join("、") : "暂无明显薄弱项";
@@ -4327,12 +4362,25 @@
       const trainingDetails = Array.isArray(record.answer_details) ? record.answer_details : [];
       const quizDetails = record.report?.answerDetails || [];
       if (quizDetails.length) {
-        return '<details><summary>查看逐题作答</summary>' + quizDetails.map((a, i) => '<div class="question-review ' + (Number(a.score) >= 80 ? "correct" : "wrong") + '"><b>第 ' + (i + 1) + ' 题</b><p>' + esc(a.q) + '</p><p>学生答案：' + esc(a.answer) + '</p><p>参考答案：' + esc(a.correctAnswer || "见解析") + '</p><p>得分：' + esc(a.score) + '</p><p>解析：' + esc(a.explanation || a.feedback || "") + '</p></div>').join("") + '</details>';
+        return quizDetails.map((a, i) => '<div class="question-review ' + (Number(a.score) >= 80 ? "correct" : "wrong") + '"><b>第 ' + (i + 1) + ' 题</b><p>' + esc(a.q) + '</p><p>学生答案：' + esc(a.answer) + '</p><p>参考答案：' + esc(a.correctAnswer || "见解析") + '</p><p>得分：' + esc(a.score) + '</p><p>解析：' + esc(a.explanation || a.feedback || "") + '</p></div>').join("");
       }
       if (trainingDetails.length) {
-        return '<details><summary>查看训练原始回答</summary>' + trainingDetails.map(a => '<div class="question-review"><b>' + esc(a.step || ("第 " + a.index + " 步")) + '</b><p>学生回答：' + esc(a.answer || "") + '</p><p>得分：' + esc(a.score ?? "未评分") + '</p></div>').join("") + '</details>';
+        return trainingDetails.map(a => '<div class="question-review"><b>' + esc(a.step || ("第 " + a.index + " 步")) + '</b><p>学生回答：' + esc(a.answer || "") + '</p><p>得分：' + esc(a.score ?? "未评分") + '</p></div>').join("");
       }
-      return '<details><summary>查看作答摘要</summary><p>' + esc(record.summary || "暂无详细作答记录") + '</p></details>';
+      return '<p>' + esc(record.summary || "暂无详细作答记录") + '</p>';
+    }
+
+    function openTeacherDetail(fid) {
+      const record = getRecords().find(r => String(r.fid || r.time) === String(fid));
+      if (!record) return;
+      document.querySelectorAll("#teacherContent > .topbar, #teacherContent > section.panel:not(#teacherDetailPage)").forEach(el => el.classList.add("hidden"));
+      document.getElementById("teacherDetailPage").classList.remove("hidden");
+      document.getElementById("teacherDetailContent").innerHTML = '<div class="report-card"><h3>' + esc(record.student) + ' - ' + esc(record.type) + '</h3><div class="report-grid"><div class="report-metric">得分<b>' + esc(record.accuracy) + '%</b></div><div class="report-metric">薄弱模块<b>' + esc(record.weak || "暂无") + '</b></div><div class="report-metric">来源<b>' + esc(record.source || record.case_source || "未标注") + '</b></div></div><p>时间：' + esc(record.time) + '</p><p>病例/题组：' + esc(record.caseId) + '</p><p>学情报告：' + esc(record.report_text || record.report?.weakPoints?.join("、") || "暂无报告") + '</p></div>' + buildRecordDetailHtml(record);
+    }
+
+    function backToTeacherList() {
+      document.getElementById("teacherDetailPage").classList.add("hidden");
+      document.querySelectorAll("#teacherContent > .topbar, #teacherContent > section.panel:not(#teacherDetailPage)").forEach(el => el.classList.remove("hidden"));
     }
 
     function renderTeacher() {
@@ -4360,8 +4408,11 @@
         <td class="${Number(r.accuracy) >= 80 ? "ok-text" : "danger-text"}">${esc(r.accuracy)}%</td>
         <td>${esc(r.weak)}</td>
         <td>${esc(r.report_text || r.report?.weakPoints?.join("、") || "暂无报告").slice(0, 180)}</td>
-        <td>${buildRecordDetailHtml(r)}</td>
+        <td><button class="secondary record-detail-btn" type="button" data-fid="${esc(r.fid || r.time)}">查看详情</button></td>
       </tr>`).join("") || `<tr><td colspan="8">暂无记录</td></tr>`;
+      document.querySelectorAll(".record-detail-btn").forEach(btn => {
+        btn.addEventListener("click", () => openTeacherDetail(btn.dataset.fid));
+      });
     }
 
     function seedDemoData() {
@@ -4485,6 +4536,7 @@
       updateQuizConfigStatus();
     }));
     document.getElementById("seedDemoBtn").addEventListener("click", seedDemoData);
+    document.getElementById("backTeacherListBtn").addEventListener("click", backToTeacherList);
     document.getElementById("clearDataBtn").addEventListener("click", () => {
       if (confirm("确认清空本机学情记录？")) {
         setRecords([]);
