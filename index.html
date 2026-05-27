@@ -643,6 +643,16 @@
       margin-top: 10px;
     }
 
+    .ai-insight {
+      border: 1px solid #bfdbfe;
+      border-left: 4px solid #2563eb;
+      background: #eff6ff;
+      border-radius: 8px;
+      padding: 14px;
+      white-space: pre-wrap;
+      line-height: 1.75;
+    }
+
     details {
       text-align: left;
     }
@@ -999,6 +1009,28 @@
           </div>
           <button class="btn warn" id="seedDemoBtn">生成演示数据</button>
         </div>
+        <section class="panel">
+          <div class="panel-head">
+            <h3>大模型学情分析接口</h3>
+            <span class="tag">OpenAI 兼容格式</span>
+          </div>
+          <div class="panel-body stack">
+            <div class="notice">建议填写学校或个人部署的安全代理接口，不建议在公开网页中直接暴露真实 API Key。学生完成测试后，系统会把错题、学生答案、参考答案和薄弱模块发送给该接口，生成更细致的个性化学情分析。</div>
+            <label><input id="aiEnabled" type="checkbox" /> 启用大模型分析学情报告</label>
+            <div class="quiz-type-grid">
+              <label>接口地址
+                <input id="aiEndpoint" placeholder="例如：https://your-proxy.example.com/v1/chat/completions" style="width:100%; margin-top:8px;" />
+              </label>
+              <label>模型名称
+                <input id="aiModel" placeholder="例如：gpt-4o-mini / qwen-plus / deepseek-chat" style="width:100%; margin-top:8px;" />
+              </label>
+              <label>访问令牌（本机保存）
+                <input id="aiApiKey" type="password" autocomplete="off" placeholder="建议使用代理临时令牌" style="width:100%; margin-top:8px;" />
+              </label>
+            </div>
+            <div class="auth-status" id="aiConfigStatus">未启用大模型分析。</div>
+          </div>
+        </section>
         <section class="panel">
           <div class="panel-head">
             <h3>课前/课后测试配置</h3>
@@ -3022,10 +3054,17 @@
       quizConfigs: {
         "课前测试": { sourceMode: "builtin", questionCount: 5, mode: "mixed", customQuestions: [], customSurvey: [] },
         "课后测试": { sourceMode: "builtin", questionCount: 5, mode: "mixed", customQuestions: [], customSurvey: [] }
+      },
+      aiSettings: {
+        enabled: false,
+        endpoint: "",
+        model: "",
+        apiKey: ""
       }
     };
 
     const QUIZ_CONFIG_KEY = "kouqiang526_teacher_quiz_configs";
+    const AI_CONFIG_KEY = "kouqiang526_ai_report_config";
 
     const chat = document.getElementById("chat");
     const input = document.getElementById("studentInput");
@@ -4126,6 +4165,48 @@
       if (studentNotice) studentNotice.textContent = "本次" + state.activeQuizType + "由教师端统一配置：" + (sourceText[active.sourceMode] || "课程题库") + "，" + (active.questionCount || 5) + " 题，" + (typeText[active.mode] || "随机混合") + ((active.customSurvey || []).length ? "，需填写调查问卷。" : "。") + "课前测试和课后测试独立记录，结束后自动生成个性化学情报告。";
     }
 
+    function loadAiSettings() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(AI_CONFIG_KEY) || "{}");
+        state.aiSettings = {
+          enabled: Boolean(saved.enabled),
+          endpoint: saved.endpoint || "",
+          model: saved.model || "",
+          apiKey: saved.apiKey || ""
+        };
+      } catch (e) {}
+      if (document.getElementById("aiEnabled")) {
+        document.getElementById("aiEnabled").checked = state.aiSettings.enabled;
+        document.getElementById("aiEndpoint").value = state.aiSettings.endpoint;
+        document.getElementById("aiModel").value = state.aiSettings.model;
+        document.getElementById("aiApiKey").value = state.aiSettings.apiKey;
+      }
+      updateAiConfigStatus();
+    }
+
+    function saveAiSettings() {
+      state.aiSettings = {
+        enabled: document.getElementById("aiEnabled").checked,
+        endpoint: document.getElementById("aiEndpoint").value.trim(),
+        model: document.getElementById("aiModel").value.trim(),
+        apiKey: document.getElementById("aiApiKey").value.trim()
+      };
+      localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(state.aiSettings));
+      updateAiConfigStatus();
+    }
+
+    function updateAiConfigStatus(text) {
+      const status = document.getElementById("aiConfigStatus");
+      if (!status) return;
+      if (text) {
+        status.textContent = text;
+        return;
+      }
+      if (!state.aiSettings.enabled) status.textContent = "未启用大模型分析。";
+      else if (!state.aiSettings.endpoint || !state.aiSettings.model) status.textContent = "已勾选启用，但接口地址或模型名称未填写完整。";
+      else status.textContent = "已启用：完成测试后将调用大模型生成深度学情分析。";
+    }
+
     function setQuizPage(type) {
       state.activeQuizType = type;
       const cfg = getQuizConfig(type);
@@ -4333,6 +4414,74 @@
       return "针对错题 " + wrongTitles + "，先标出题干限定词，再写出正确答案成立依据和每个错误选项的排除点。";
     }
 
+    function canUseAiReport() {
+      return Boolean(state.aiSettings.enabled && state.aiSettings.endpoint && state.aiSettings.model);
+    }
+
+    function buildAiReportPrompt(report) {
+      const compactAnswers = (report.answerDetails || []).map((a, i) => ({
+        序号: i + 1,
+        题干: a.q,
+        学生答案: a.answer,
+        参考答案: a.correctAnswer,
+        得分: a.score,
+        薄弱模块: a.weak,
+        现有解析: a.explanation
+      }));
+      return "你是广西医科大学口腔医学院口腔黏膜病课程的临床思维训练教师。请基于以下测试数据生成一份高质量个性化学情报告。要求：1. 不说空话；2. 明确学生错在哪里；3. 按薄弱模块给出诊断性分析；4. 对每个主要错题说明正确答案为什么成立、学生答案为什么错；5. 给出下一次复习任务，任务要可执行；6. 只输出中文，分为【总体判断】【主要薄弱点】【错题诊断】【补救任务】四段。\n\n测试概况：" + JSON.stringify({ 标题: report.title, 得分: report.score, 掌握题数: report.correct + '/' + report.total, 本地诊断: report.performanceSummary, 模块统计: report.moduleRows }, null, 2) + "\n\n逐题作答：" + JSON.stringify(compactAnswers, null, 2);
+    }
+
+    async function requestAiReport(report) {
+      const payload = {
+        model: state.aiSettings.model,
+        messages: [
+          { role: "system", content: "你是口腔黏膜病教学专家，负责根据学生测试数据生成具体、专业、可执行的学情分析。不得编造题目外不存在的学生信息。" },
+          { role: "user", content: buildAiReportPrompt(report) }
+        ],
+        temperature: 0.2
+      };
+      const headers = { "Content-Type": "application/json" };
+      if (state.aiSettings.apiKey) headers.Authorization = "Bearer " + state.aiSettings.apiKey;
+      const res = await fetch(state.aiSettings.endpoint, { method: "POST", headers, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error("接口返回 " + res.status);
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || data.output_text || data.text || "";
+    }
+
+    function appendAiInsight(container, text) {
+      if (!container) return;
+      let box = container.querySelector(".ai-insight");
+      if (!box) {
+        box = document.createElement("div");
+        box.className = "ai-insight";
+        container.prepend(box);
+      }
+      box.textContent = text;
+    }
+
+    async function enhanceReportWithAi(report, fid) {
+      if (!canUseAiReport()) return;
+      const box = document.getElementById("quizBox");
+      appendAiInsight(box, "正在调用大模型生成深度学情分析...");
+      try {
+        const aiInsight = await requestAiReport(report);
+        if (!aiInsight) throw new Error("模型未返回内容");
+        report.aiInsight = aiInsight;
+        const records = getRecords();
+        const target = records.find(r => r.fid === fid);
+        if (target) {
+          target.report = report;
+          target.ai_insight = aiInsight;
+          target.report_text = aiInsight.slice(0, 500);
+          setRecords(records);
+          renderTeacher();
+        }
+        appendAiInsight(box, "AI深度学情分析\n\n" + aiInsight);
+      } catch (err) {
+        appendAiInsight(box, "AI深度学情分析暂未生成：" + (err.message || err) + "\n当前已保留本地规则学情报告。");
+      }
+    }
+
     function renderLearningReport(report) {
       const moduleHtml = report.moduleRows.length
         ? report.moduleRows.map(row => '<tr><td>' + esc(row.name) + '</td><td>' + row.total + '</td><td>' + row.wrong + '</td><td>' + row.accuracy + '%</td><td>' + esc(row.diagnosis) + '</td><td>' + esc(row.action) + '</td></tr>').join("")
@@ -4357,8 +4506,9 @@
       const weakText = weak.length ? [...new Set(weak)].join("、") : "暂无明显薄弱项";
       const report = generateLearningReport(type, avg, weak);
       const records = getRecords();
+      const fid = "QUIZ-" + Date.now();
       records.unshift({
-        fid: "QUIZ-" + Date.now(),
+        fid,
         time: nowText(),
         student: state.studentId,
         type,
@@ -4383,6 +4533,7 @@
       document.getElementById("quizProgress").textContent = "已完成";
       refreshMetrics();
       renderTeacher();
+      enhanceReportWithAi(report, fid);
     }
 
     function countItems(items) {
@@ -4423,7 +4574,7 @@
       document.querySelectorAll("#teacherContent > .topbar, #teacherContent > section.panel:not(#teacherDetailPage)").forEach(el => el.classList.add("hidden"));
       document.getElementById("teacherDetailPage").classList.remove("hidden");
       const reportBlock = record.report?.performanceSummary
-        ? '<h4>学情诊断</h4><p>' + esc(record.report.performanceSummary) + '</p><h4>优先补缺任务</h4><ol>' + (record.report.remediation || []).map(x => '<li>' + esc(x) + '</li>').join("") + '</ol>'
+        ? '<h4>学情诊断</h4><p>' + esc(record.report.performanceSummary) + '</p>' + (record.ai_insight || record.report?.aiInsight ? '<h4>AI深度学情分析</h4><div class="ai-insight">' + esc(record.ai_insight || record.report.aiInsight) + '</div>' : '') + '<h4>优先补缺任务</h4><ol>' + (record.report.remediation || []).map(x => '<li>' + esc(x) + '</li>').join("") + '</ol>'
         : '<p>学情报告：' + esc(record.report_text || record.report?.weakPoints?.join("、") || "暂无报告") + '</p>';
       document.getElementById("teacherDetailContent").innerHTML = '<div class="report-card"><h3>' + esc(record.student) + ' - ' + esc(record.type) + '</h3><div class="report-grid"><div class="report-metric">得分<b>' + esc(record.accuracy) + '%</b></div><div class="report-metric">薄弱模块<b>' + esc(record.weak || "暂无") + '</b></div><div class="report-metric">来源<b>' + esc(record.source || record.case_source || "未标注") + '</b></div></div><p>时间：' + esc(record.time) + '</p><p>病例/题组：' + esc(record.caseId) + '</p>' + reportBlock + '</div>' + buildRecordDetailHtml(record);
     }
@@ -4565,6 +4716,10 @@
       }
     });
 
+    ["aiEnabled", "aiEndpoint", "aiModel", "aiApiKey"].forEach(id => {
+      document.getElementById(id).addEventListener(id === "aiEnabled" ? "change" : "input", saveAiSettings);
+    });
+
     document.querySelectorAll(".choice").forEach(btn => {
       btn.addEventListener("click", () => handleStudentSubmit(btn.dataset.pick));
     });
@@ -4612,6 +4767,7 @@
     });
 
     loadQuizConfig();
+    loadAiSettings();
     restoreStudentLogin();
     openAppDb().then(() => {
       saveRecordsToDb(getRecords());
