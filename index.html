@@ -1027,11 +1027,11 @@
                   </select>
                 </label>
                 <div class="upload-box">
-                  <label>上传课前测试题目（支持 JSON / CSV / TXT）
-                    <input id="preCustomQuestionUpload" type="file" accept=".json,.csv,.txt" />
+                  <label>上传课前测试题目（支持 Excel / Word / PPT / JSON / CSV / TXT）
+                    <input id="preCustomQuestionUpload" type="file" accept=".xlsx,.xls,.docx,.doc,.pptx,.ppt,.json,.csv,.txt" />
                   </label>
-                  <label>上传课前调查问卷（支持 JSON / CSV / TXT）
-                    <input id="preSurveyUpload" type="file" accept=".json,.csv,.txt" />
+                  <label>上传课前调查问卷（支持 Excel / Word / PPT / JSON / CSV / TXT）
+                    <input id="preSurveyUpload" type="file" accept=".xlsx,.xls,.docx,.doc,.pptx,.ppt,.json,.csv,.txt" />
                   </label>
                   <div class="auth-status" id="preUploadBankStatus">未上传课前自定义题目或问卷，将使用内置课程题库。</div>
                 </div>
@@ -1056,11 +1056,11 @@
                   </select>
                 </label>
                 <div class="upload-box">
-                  <label>上传课后测试题目（支持 JSON / CSV / TXT）
-                    <input id="postCustomQuestionUpload" type="file" accept=".json,.csv,.txt" />
+                  <label>上传课后测试题目（支持 Excel / Word / PPT / JSON / CSV / TXT）
+                    <input id="postCustomQuestionUpload" type="file" accept=".xlsx,.xls,.docx,.doc,.pptx,.ppt,.json,.csv,.txt" />
                   </label>
-                  <label>上传课后调查问卷（支持 JSON / CSV / TXT）
-                    <input id="postSurveyUpload" type="file" accept=".json,.csv,.txt" />
+                  <label>上传课后调查问卷（支持 Excel / Word / PPT / JSON / CSV / TXT）
+                    <input id="postSurveyUpload" type="file" accept=".xlsx,.xls,.docx,.doc,.pptx,.ppt,.json,.csv,.txt" />
                   </label>
                   <div class="auth-status" id="postUploadBankStatus">未上传课后自定义题目或问卷，将使用内置课程题库。</div>
                 </div>
@@ -1134,6 +1134,9 @@
     <img id="lightboxImg" alt="病例图片放大预览" />
   </div>
 
+  <script async src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script async src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script async src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
   <script>
     const FLOWS = {
       none: "主菜单状态",
@@ -3840,9 +3843,34 @@
 
     function normalizeQuizQuestion(item) {
       if (!item) return null;
-      if (item.type === "short") return item;
-      if (item.options && Array.isArray(item.options)) return { ...item, type: "choice" };
-      return null;
+      if (item.type === "short") return item.q ? item : null;
+      if (Array.isArray(item)) {
+        const compact = item.map(x => String(x || "").trim());
+        const answerCell = compact.length >= 7 ? compact[6] : compact[5];
+        item = {
+          q: compact[0],
+          options: (compact.length >= 7 ? compact.slice(1, 6) : compact.slice(1, 5)).filter(Boolean),
+          answer: answerCell,
+          weak: compact[7],
+          explanation: compact[8]
+        };
+      }
+      const q = String(item.q || item.question || item.title || item["题干"] || item["问题"] || "").trim();
+      const options = Array.isArray(item.options)
+        ? item.options.map(x => String(x || "").trim()).filter(Boolean)
+        : ["A", "B", "C", "D", "E", "选项A", "选项B", "选项C", "选项D", "选项E"].map(key => item[key]).filter(x => String(x || "").trim()).map(String);
+      const answerRaw = item.answer ?? item.correct ?? item.correctAnswer ?? item["正确答案"] ?? item["答案"];
+      const answer = parseAnswerIndex(answerRaw, options);
+      if (!q || options.length < 2 || Number.isNaN(answer)) return null;
+      return {
+        q,
+        options,
+        answer,
+        source: item.source || item["来源"] || "教师上传题库",
+        weak: item.weak || item["知识点"] || item["薄弱模块"] || "教师上传题目",
+        explanation: item.explanation || item.analysis || item["答案解析"] || item["解析"] || "",
+        type: "choice"
+      };
     }
 
     function defaultQuizConfig() {
@@ -3934,6 +3962,20 @@
       if (surveyBox && !state.quiz.length) surveyBox.innerHTML = "";
     }
 
+    function parseAnswerIndex(value, options = []) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return value >= 1 && value <= options.length ? value - 1 : value;
+      }
+      const raw = String(value || "").trim();
+      if (!raw) return Number.NaN;
+      const letter = raw.match(/[A-E]/i)?.[0];
+      if (letter) return letter.toUpperCase().charCodeAt(0) - 65;
+      const byText = options.findIndex(op => raw.includes(op) || op.includes(raw));
+      if (byText >= 0) return byText;
+      const num = Number(raw);
+      return Number.isFinite(num) ? (num >= 1 ? num - 1 : num) : Number.NaN;
+    }
+
     function parseUploadedQuestions(text, kind) {
       const trimmed = text.trim();
       if (!trimmed) return [];
@@ -3942,6 +3984,8 @@
         const items = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.items || []);
         return kind === "survey" ? items.map(normalizeSurveyQuestion).filter(Boolean) : items.map(normalizeQuizQuestion).filter(Boolean);
       } catch (e) {}
+      const structured = parseStructuredTextQuestions(trimmed, kind);
+      if (structured.length) return structured;
       const lines = trimmed.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
       if (kind === "survey") {
         return lines.map(line => normalizeSurveyQuestion({ question: line.replace(/^\d+[.、]\s*/, "") })).filter(Boolean);
@@ -3950,11 +3994,10 @@
         const cells = line.split(/,|\t|\|/).map(x => x.trim()).filter(Boolean);
         if (cells.length >= 6) {
           const answerRaw = cells[5];
-          const answerIndex = /^[A-E]$/i.test(answerRaw) ? answerRaw.toUpperCase().charCodeAt(0) - 65 : Math.max(0, Number(answerRaw) - 1);
           return normalizeQuizQuestion({
             q: cells[0],
             options: cells.slice(1, 5),
-            answer: answerIndex,
+            answer: answerRaw,
             weak: cells[6] || "教师上传题目",
             explanation: cells[7] || "",
             source: "教师上传题库"
@@ -3964,26 +4007,170 @@
       }).filter(Boolean);
     }
 
+    function parseStructuredTextQuestions(text, kind) {
+      const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      if (kind === "survey") {
+        return lines
+          .filter(line => !/^(A|B|C|D|E)[.、:：]/i.test(line) && !/^答案[:：]/.test(line))
+          .map(line => normalizeSurveyQuestion({ question: line.replace(/^\d+[.、]\s*/, "") }))
+          .filter(Boolean);
+      }
+      const items = [];
+      let current = null;
+      const flush = () => {
+        if (current) {
+          const normalized = normalizeQuizQuestion(current);
+          if (normalized) items.push(normalized);
+        }
+        current = null;
+      };
+      lines.forEach(line => {
+        const qMatch = line.match(/^(?:\d+[.、]\s*)?(?:题目|问题|Q)?[:：]?\s*(.+)$/i);
+        const opMatch = line.match(/^([A-E])[.、:：]\s*(.+)$/i);
+        const ansMatch = line.match(/^(?:答案|正确答案|参考答案)[:：]\s*(.+)$/);
+        const expMatch = line.match(/^(?:解析|答案解析)[:：]\s*(.+)$/);
+        if (opMatch && current) {
+          current.options[opMatch[1].toUpperCase().charCodeAt(0) - 65] = opMatch[2].trim();
+        } else if (ansMatch && current) {
+          current.answer = ansMatch[1].trim();
+        } else if (expMatch && current) {
+          current.explanation = [current.explanation, expMatch[1].trim()].filter(Boolean).join("\n");
+        } else if (!/^(?:知识点|来源)[:：]/.test(line)) {
+          if (current && current.options.length) flush();
+          current = { q: qMatch?.[1] || line, options: [], answer: "", weak: "教师上传题目", explanation: "", source: "教师上传题库" };
+        }
+      });
+      flush();
+      return items;
+    }
+
     function normalizeSurveyQuestion(item) {
       if (!item) return null;
       const question = String(item.question || item.q || item.title || item).trim();
       return question ? { question } : null;
     }
 
-    function handleQuestionUpload(file, kind, type) {
+    async function extractUploadItems(file, kind) {
+      const ext = file.name.split(".").pop().toLowerCase();
+      if (["xlsx", "xls"].includes(ext)) {
+        await ensureOfficeParser("XLSX", "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js");
+        const rows = await readSpreadsheetRows(file);
+        return rowsToUploadedItems(rows, kind);
+      }
+      if (ext === "docx") {
+        await ensureOfficeParser("mammoth", "https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js");
+        const buffer = await file.arrayBuffer();
+        if (!window.mammoth) throw new Error("Word 解析库加载失败，请检查网络后重试，或另存为 TXT/CSV 上传。");
+        const result = await window.mammoth.extractRawText({ arrayBuffer: buffer });
+        return parseUploadedQuestions(result.value || "", kind);
+      }
+      if (ext === "pptx") {
+        await ensureOfficeParser("JSZip", "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js");
+        const text = await extractPptxText(file);
+        return parseUploadedQuestions(text, kind);
+      }
+      const text = await readFileAsText(file);
+      return parseUploadedQuestions(text, kind);
+    }
+
+    function ensureOfficeParser(globalName, src) {
+      if (window[globalName]) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-parser="' + globalName + '"]');
+        if (existing) {
+          existing.addEventListener("load", resolve, { once: true });
+          existing.addEventListener("error", () => reject(new Error(globalName + " 解析库加载失败")), { once: true });
+          return;
+        }
+        const script = document.createElement("script");
+        script.src = src;
+        script.async = true;
+        script.dataset.parser = globalName;
+        script.onload = resolve;
+        script.onerror = () => reject(new Error(globalName + " 解析库加载失败"));
+        document.head.appendChild(script);
+      });
+    }
+
+    async function readSpreadsheetRows(file) {
+      if (!window.XLSX) throw new Error("Excel 解析库加载失败，请检查网络后重试，或另存为 CSV 上传。");
+      const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
+      return workbook.SheetNames.flatMap(name => window.XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: "" }));
+    }
+
+    function rowsToUploadedItems(rows, kind) {
+      const nonEmpty = rows.filter(row => row.some(cell => String(cell || "").trim()));
+      if (!nonEmpty.length) return [];
+      if (kind === "survey") {
+        return nonEmpty.map(row => normalizeSurveyQuestion({ question: row.find(cell => String(cell || "").trim()) })).filter(Boolean);
+      }
+      const header = nonEmpty[0].map(cell => String(cell || "").trim());
+      const hasHeader = header.some(cell => /题干|问题|正确答案|答案|解析|知识点/i.test(cell));
+      const dataRows = hasHeader ? nonEmpty.slice(1) : nonEmpty;
+      const keyOf = names => header.findIndex(cell => names.some(name => cell.includes(name)));
+      return dataRows.map(row => {
+        if (hasHeader) {
+          const qIndex = keyOf(["题干", "问题", "题目"]);
+          return normalizeQuizQuestion({
+            q: row[qIndex >= 0 ? qIndex : 0],
+            A: row[keyOf(["A", "选项A"])],
+            B: row[keyOf(["B", "选项B"])],
+            C: row[keyOf(["C", "选项C"])],
+            D: row[keyOf(["D", "选项D"])],
+            E: row[keyOf(["E", "选项E"])],
+            answer: row[keyOf(["正确答案", "答案"])],
+            weak: row[keyOf(["知识点", "薄弱模块"])],
+            explanation: row[keyOf(["答案解析", "解析"])],
+            source: "教师上传题库"
+          });
+        }
+        return normalizeQuizQuestion(row);
+      }).filter(Boolean);
+    }
+
+    async function extractPptxText(file) {
+      if (!window.JSZip) throw new Error("PPT 解析库加载失败，请检查网络后重试，或另存为 TXT/CSV 上传。");
+      const zip = await window.JSZip.loadAsync(await file.arrayBuffer());
+      const slideFiles = Object.keys(zip.files).filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      const texts = [];
+      for (const name of slideFiles) {
+        const xml = await zip.files[name].async("text");
+        [...xml.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)].forEach(match => texts.push(decodeXml(match[1])));
+      }
+      return texts.join("\n");
+    }
+
+    function decodeXml(text) {
+      return text.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&quot;/g, "\"").replace(/&apos;/g, "'");
+    }
+
+    function readFileAsText(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(reader.error || new Error("文件读取失败"));
+        reader.readAsText(file, "utf-8");
+      });
+    }
+
+    async function handleQuestionUpload(file, kind, type) {
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
+      const statusId = type === "课前测试" ? "preUploadBankStatus" : "postUploadBankStatus";
+      const status = document.getElementById(statusId);
+      if (status) status.textContent = "正在解析文件：" + file.name;
+      try {
         const cfg = getQuizConfig(type);
-        const items = parseUploadedQuestions(String(reader.result || ""), kind);
+        const items = await extractUploadItems(file, kind);
+        if (!items.length) throw new Error("未识别到有效" + (kind === "survey" ? "问卷题目" : "测试题目") + "。");
         if (kind === "survey") cfg.customSurvey = items;
         else cfg.customQuestions = items;
         state.quizConfigs[type] = cfg;
         localStorage.setItem(QUIZ_CONFIG_KEY, JSON.stringify(state.quizConfigs));
         updateQuizConfigStatus();
         setQuizPage(state.activeQuizType || type);
-      };
-      reader.readAsText(file, "utf-8");
+      } catch (err) {
+        if (status) status.textContent = "解析失败：" + (err.message || err) + " 旧版 .doc/.ppt 如无法解析，请另存为 .docx/.pptx、Excel、CSV 或 TXT 后上传。";
+      }
     }
 
     function renderSurveyForm() {
