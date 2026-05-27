@@ -3749,6 +3749,165 @@
       return null;
     }
 
+    function defaultQuizConfig() {
+      return { sourceMode: "builtin", questionCount: 5, mode: "mixed", customQuestions: [], customSurvey: [] };
+    }
+
+    function getQuizConfig(type) {
+      return { ...defaultQuizConfig(), ...(state.quizConfigs[type] || {}) };
+    }
+
+    function loadQuizConfig() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(QUIZ_CONFIG_KEY) || "{}");
+        ["课前测试", "课后测试"].forEach(type => {
+          state.quizConfigs[type] = { ...defaultQuizConfig(), ...(saved[type] || state.quizConfigs[type] || {}) };
+        });
+      } catch (e) {}
+      updateQuizConfigControls("课前测试", "pre");
+      updateQuizConfigControls("课后测试", "post");
+      updateQuizConfigStatus();
+      setQuizPage(state.activeQuizType || "课前测试");
+    }
+
+    function updateQuizConfigControls(type, prefix) {
+      const cfg = getQuizConfig(type);
+      const source = document.getElementById(prefix + "QuizSourceMode");
+      const count = document.getElementById(prefix + "QuizQuestionCount");
+      const mode = document.getElementById(prefix + "QuizMode");
+      if (source) source.value = cfg.sourceMode;
+      if (count) count.value = cfg.questionCount;
+      if (mode) mode.value = cfg.mode;
+    }
+
+    function saveQuizConfig() {
+      [
+        { type: "课前测试", prefix: "pre" },
+        { type: "课后测试", prefix: "post" }
+      ].forEach(({ type, prefix }) => {
+        const old = getQuizConfig(type);
+        state.quizConfigs[type] = {
+          ...old,
+          sourceMode: document.getElementById(prefix + "QuizSourceMode")?.value || old.sourceMode,
+          questionCount: Math.max(1, Math.min(50, Number(document.getElementById(prefix + "QuizQuestionCount")?.value || old.questionCount || 5))),
+          mode: document.getElementById(prefix + "QuizMode")?.value || old.mode
+        };
+      });
+      localStorage.setItem(QUIZ_CONFIG_KEY, JSON.stringify(state.quizConfigs));
+      setQuizPage(state.activeQuizType || "课前测试");
+    }
+
+    function updateQuizConfigStatus() {
+      [
+        { type: "课前测试", id: "preUploadBankStatus" },
+        { type: "课后测试", id: "postUploadBankStatus" }
+      ].forEach(({ type, id }) => {
+        const cfg = getQuizConfig(type);
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = "已配置：" + cfg.questionCount + " 题，" + describeQuizMode(cfg.mode) + "，" + describeQuizSource(cfg.sourceMode) + "；已上传题目 " + (cfg.customQuestions || []).length + " 道，问卷 " + (cfg.customSurvey || []).length + " 项。";
+      });
+    }
+
+    function describeQuizSource(sourceMode) {
+      if (sourceMode === "uploaded") return "仅教师上传题目";
+      if (sourceMode === "mixed") return "课程题库 + 教师上传题目";
+      return "课程题库";
+    }
+
+    function describeQuizMode(mode) {
+      if (mode === "choice") return "选择题";
+      if (mode === "short") return "问答题";
+      return "随机混合";
+    }
+
+    function setQuizPage(type) {
+      state.activeQuizType = type;
+      const cfg = getQuizConfig(type);
+      const label = document.getElementById("currentQuizLabel");
+      const desc = document.getElementById("currentQuizDesc");
+      const notice = document.getElementById("studentQuizConfigNotice");
+      if (label) label.textContent = type;
+      if (desc) desc.textContent = type === "课前测试" ? "用于课前诊断，识别本章预习薄弱点。" : "用于课后巩固，检查本章知识掌握情况。";
+      if (notice) notice.textContent = "当前配置：" + describeQuizSource(cfg.sourceMode) + "，" + cfg.questionCount + " 题，" + describeQuizMode(cfg.mode) + "。测试结束后生成精简学情报告和逐题答案解析。";
+      const progress = document.getElementById("quizProgress");
+      if (progress && !state.quiz.length) progress.textContent = "未开始";
+      const box = document.getElementById("quizBox");
+      if (box && !state.quiz.length) box.innerHTML = "";
+      const surveyBox = document.getElementById("surveyBox");
+      if (surveyBox && !state.quiz.length) surveyBox.innerHTML = "";
+    }
+
+    function parseUploadedQuestions(text, kind) {
+      const trimmed = text.trim();
+      if (!trimmed) return [];
+      try {
+        const parsed = JSON.parse(trimmed);
+        const items = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.items || []);
+        return kind === "survey" ? items.map(normalizeSurveyQuestion).filter(Boolean) : items.map(normalizeQuizQuestion).filter(Boolean);
+      } catch (e) {}
+      const lines = trimmed.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      if (kind === "survey") {
+        return lines.map(line => normalizeSurveyQuestion({ question: line.replace(/^\d+[.、]\s*/, "") })).filter(Boolean);
+      }
+      return lines.map(line => {
+        const cells = line.split(/,|\t|\|/).map(x => x.trim()).filter(Boolean);
+        if (cells.length >= 6) {
+          const answerRaw = cells[5];
+          const answerIndex = /^[A-E]$/i.test(answerRaw) ? answerRaw.toUpperCase().charCodeAt(0) - 65 : Math.max(0, Number(answerRaw) - 1);
+          return normalizeQuizQuestion({
+            q: cells[0],
+            options: cells.slice(1, 5),
+            answer: answerIndex,
+            weak: cells[6] || "教师上传题目",
+            explanation: cells[7] || "",
+            source: "教师上传题库"
+          });
+        }
+        return null;
+      }).filter(Boolean);
+    }
+
+    function normalizeSurveyQuestion(item) {
+      if (!item) return null;
+      const question = String(item.question || item.q || item.title || item).trim();
+      return question ? { question } : null;
+    }
+
+    function handleQuestionUpload(file, kind, type) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const cfg = getQuizConfig(type);
+        const items = parseUploadedQuestions(String(reader.result || ""), kind);
+        if (kind === "survey") cfg.customSurvey = items;
+        else cfg.customQuestions = items;
+        state.quizConfigs[type] = cfg;
+        localStorage.setItem(QUIZ_CONFIG_KEY, JSON.stringify(state.quizConfigs));
+        updateQuizConfigStatus();
+        setQuizPage(state.activeQuizType || type);
+      };
+      reader.readAsText(file, "utf-8");
+    }
+
+    function renderSurveyForm() {
+      const box = document.getElementById("surveyBox");
+      const survey = state.customSurvey || [];
+      state.surveyAnswers = survey.map(item => ({ question: item.question, answer: "" }));
+      if (!box) return;
+      if (!survey.length) {
+        box.innerHTML = "";
+        return;
+      }
+      box.innerHTML = '<div class="quiz-card"><b>调查问卷</b><p class="tag">请在测试过程中或提交前填写，系统会把反馈纳入学情记录。</p>' + survey.map((item, i) => '<label>' + esc(item.question) + '<textarea class="answer-box survey-answer" data-index="' + i + '" placeholder="请输入你的反馈"></textarea></label>').join("") + '</div>';
+      box.querySelectorAll(".survey-answer").forEach(input => {
+        input.addEventListener("input", () => {
+          const index = Number(input.dataset.index);
+          if (state.surveyAnswers[index]) state.surveyAnswers[index].answer = input.value.trim();
+        });
+      });
+    }
+
     function startQuiz(type) {
       if (!state.studentLoggedIn) {
         document.getElementById("quizLoginNotice").textContent = "未登录：请先进入“学生训练”页输入学号并登录，然后再开始测试。";
@@ -3756,9 +3915,12 @@
         return;
       }
       state.activeQuizType = type;
-      const mode = document.getElementById("quizMode").value;
-      const sourceMode = document.getElementById("quizSourceMode").value;
-      const questionCount = Math.max(1, Math.min(50, Number(document.getElementById("quizQuestionCount").value || 5)));
+      const cfg = getQuizConfig(type);
+      const mode = cfg.mode || "mixed";
+      const sourceMode = cfg.sourceMode || "builtin";
+      const questionCount = Math.max(1, Math.min(50, Number(cfg.questionCount || 5)));
+      state.customQuestions = cfg.customQuestions || [];
+      state.customSurvey = cfg.customSurvey || [];
       const uploadedChoices = state.customQuestions.map(normalizeQuizQuestion).filter(Boolean);
       const builtInChoices = choiceBank.map(x => ({ ...x, type: "choice" }));
       const builtInShort = shortBank.map(x => ({ ...x, type: "short" }));
