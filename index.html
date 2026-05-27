@@ -939,36 +939,10 @@
                 </div>
                 <button class="quiz-type-card" id="startCurrentQuizBtn" type="button">
                   <b>开始测试</b>
-                  <span>按当前设置随机抽题并生成个性化学情报告。</span>
+                  <span>按教师端配置随机抽题，并在结束后生成个性化学情报告。</span>
                 </button>
               </div>
-              <label>出题范围
-                <select id="quizSourceMode" style="width:100%; margin-top:8px;">
-                  <option value="builtin">课程题库</option>
-                  <option value="uploaded">仅用户上传题目</option>
-                  <option value="mixed">课程题库 + 上传题目</option>
-                </select>
-              </label>
-              <label>题目数量
-                <input id="quizQuestionCount" type="number" min="1" max="50" value="5" style="width:100%; margin-top:8px;" />
-              </label>
-              <label>题型
-                <select id="quizMode" style="width:100%; margin-top:8px;">
-                  <option value="mixed">随机混合</option>
-                  <option value="choice">随机选择题</option>
-                  <option value="short">随机问答题</option>
-                </select>
-              </label>
-              <div class="upload-box">
-                <label>上传题目（支持 JSON / CSV / TXT）
-                  <input id="customQuestionUpload" type="file" accept=".json,.csv,.txt" />
-                </label>
-                <label>上传调查问卷（支持 JSON / CSV / TXT）
-                  <input id="surveyUpload" type="file" accept=".json,.csv,.txt" />
-                </label>
-                <div class="auth-status" id="uploadBankStatus">未上传自定义题目或问卷，将使用内置课程题库。</div>
-              </div>
-              <div class="notice">课前测试和课后测试独立记录。每次抽取 5 题，结束后自动生成个性化学情报告，学生端和教师端均可查看。</div>
+              <div class="notice" id="studentQuizConfigNotice">测试题库、问卷、出题范围、题目数量和题型由教师端统一配置。课前测试和课后测试独立记录，结束后自动生成个性化学情报告。</div>
             </div>
           </section>
 
@@ -1015,6 +989,43 @@
           </div>
           <button class="btn warn" id="seedDemoBtn">生成演示数据</button>
         </div>
+        <section class="panel">
+          <div class="panel-head">
+            <h3>课前/课后测试配置</h3>
+            <span class="tag">教师统一设置</span>
+          </div>
+          <div class="panel-body stack">
+            <div class="notice">教师在此上传题库和调查问卷，并设置学生端测试规则。学生端只显示“开始测试”，按照这里的配置进入练习和填写问卷。</div>
+            <div class="quiz-type-grid">
+              <label>出题范围
+                <select id="quizSourceMode" style="width:100%; margin-top:8px;">
+                  <option value="builtin">课程题库</option>
+                  <option value="uploaded">仅教师上传题目</option>
+                  <option value="mixed">课程题库 + 教师上传题目</option>
+                </select>
+              </label>
+              <label>题目数量
+                <input id="quizQuestionCount" type="number" min="1" max="50" value="5" style="width:100%; margin-top:8px;" />
+              </label>
+              <label>题型
+                <select id="quizMode" style="width:100%; margin-top:8px;">
+                  <option value="mixed">随机混合</option>
+                  <option value="choice">随机选择题</option>
+                  <option value="short">随机问答题</option>
+                </select>
+              </label>
+            </div>
+            <div class="upload-box">
+              <label>上传测试题目（支持 JSON / CSV / TXT）
+                <input id="customQuestionUpload" type="file" accept=".json,.csv,.txt" />
+              </label>
+              <label>上传调查问卷（支持 JSON / CSV / TXT）
+                <input id="surveyUpload" type="file" accept=".json,.csv,.txt" />
+              </label>
+              <div class="auth-status" id="uploadBankStatus">未上传教师自定义题目或问卷，将使用内置课程题库。</div>
+            </div>
+          </div>
+        </section>
         <section class="panel">
           <div class="panel-head">
             <h3>班级概览</h3>
@@ -2961,6 +2972,8 @@
       surveyAnswers: []
     };
 
+    const QUIZ_CONFIG_KEY = "kouqiang526_teacher_quiz_config";
+
     const chat = document.getElementById("chat");
     const input = document.getElementById("studentInput");
     const flowBadge = document.getElementById("flowBadge");
@@ -3798,7 +3811,7 @@
       return rows.filter(r => r.length >= 7 && !/题干|question/i.test(r[0])).map(r => {
         const answerLetter = String(r[6] || "A").trim().toUpperCase()[0];
         const answer = Math.max(0, ["A", "B", "C", "D", "E"].indexOf(answerLetter));
-        return { q: r[0], options: r.slice(1, 6).filter(Boolean), answer, source: "用户上传题库", weak: r[7] || "自定义题目" };
+        return { q: r[0], options: r.slice(1, 6).filter(Boolean), answer, source: "教师上传题库", weak: r[7] || "自定义题目" };
       }).filter(q => q.q && q.options.length >= 2);
     }
 
@@ -3833,7 +3846,7 @@
           q: item.q || item.question || item.title,
           keys: item.keys || [],
           ref: item.ref || item.correctAnswer || item.answer || "请围绕核心概念、临床表现、诊断依据和处理原则作答。",
-          source: item.source || "用户上传题库",
+          source: item.source || "教师上传题库",
           weak: item.weak || item.module || "自定义题目",
           explanation: item.explanation || item.analysis || item.ref || ""
         };
@@ -3844,7 +3857,7 @@
         q: item.q || item.question || item.title,
         options,
         answer: Math.min(Math.max(answer, 0), options.length - 1),
-        source: item.source || "用户上传题库",
+        source: item.source || "教师上传题库",
         weak: item.weak || item.module || "自定义题目",
         explanation: item.explanation || item.analysis || item.reason || ""
       };
@@ -3866,7 +3879,7 @@
           q: r[0],
           options,
           answer: Math.min(answer, Math.max(options.length - 1, 0)),
-          source: "用户上传题库",
+          source: "教师上传题库",
           weak: r[7] || r[8] || "自定义题目",
           explanation: r[8] || r[7] || "请复盘题干关键词、正确选项依据，以及错误选项的排除理由。"
         };
@@ -3904,7 +3917,7 @@
         if (kind === "question") {
           state.customQuestions = parseUploadedQuestions(text);
           document.getElementById("uploadBankStatus").textContent = state.customQuestions.length
-            ? "已加载 " + state.customQuestions.length + " 道上传题目，可在出题范围中选择“仅用户上传题库”。"
+            ? "已加载 " + state.customQuestions.length + " 道教师上传题目，可在出题范围中选择“仅教师上传题目”。"
             : "未识别到有效题目，请使用 JSON 或 CSV/TXT 格式。";
         } else {
           state.customSurvey = parseUploadedSurvey(text);
@@ -3914,8 +3927,52 @@
             : "未识别到有效问卷条目。";
           renderSurveyForm();
         }
+        saveQuizConfig();
+        updateQuizConfigStatus();
       };
       reader.readAsText(file, "utf-8");
+    }
+
+    function getQuizConfig() {
+      return {
+        sourceMode: document.getElementById("quizSourceMode")?.value || "builtin",
+        questionCount: Math.max(1, Math.min(50, Number(document.getElementById("quizQuestionCount")?.value || 5))),
+        mode: document.getElementById("quizMode")?.value || "mixed",
+        customQuestions: state.customQuestions,
+        customSurvey: state.customSurvey
+      };
+    }
+
+    function saveQuizConfig() {
+      const config = getQuizConfig();
+      localStorage.setItem(QUIZ_CONFIG_KEY, JSON.stringify(config));
+    }
+
+    function loadQuizConfig() {
+      try {
+        const config = JSON.parse(localStorage.getItem(QUIZ_CONFIG_KEY) || "{}");
+        state.customQuestions = Array.isArray(config.customQuestions) ? config.customQuestions : [];
+        state.customSurvey = Array.isArray(config.customSurvey) ? config.customSurvey : [];
+        if (config.sourceMode && document.getElementById("quizSourceMode")) document.getElementById("quizSourceMode").value = config.sourceMode;
+        if (config.questionCount && document.getElementById("quizQuestionCount")) document.getElementById("quizQuestionCount").value = config.questionCount;
+        if (config.mode && document.getElementById("quizMode")) document.getElementById("quizMode").value = config.mode;
+      } catch (e) {
+        state.customQuestions = [];
+        state.customSurvey = [];
+      }
+      updateQuizConfigStatus();
+    }
+
+    function updateQuizConfigStatus() {
+      const status = document.getElementById("uploadBankStatus");
+      const studentNotice = document.getElementById("studentQuizConfigNotice");
+      const sourceMode = document.getElementById("quizSourceMode")?.value || "builtin";
+      const modeText = { builtin: "课程题库", uploaded: "仅教师上传题目", mixed: "课程题库 + 教师上传题目" }[sourceMode] || "课程题库";
+      const typeText = { mixed: "随机混合", choice: "随机选择题", short: "随机问答题" }[document.getElementById("quizMode")?.value || "mixed"];
+      const count = document.getElementById("quizQuestionCount")?.value || 5;
+      const text = "当前配置：出题范围 " + modeText + "；题目数量 " + count + "；题型 " + typeText + "；教师上传题目 " + state.customQuestions.length + " 道；调查问卷 " + state.customSurvey.length + " 项。";
+      if (status) status.textContent = text;
+      if (studentNotice) studentNotice.textContent = "本次测试由教师端统一配置：" + modeText + "，" + count + " 题，" + typeText + (state.customSurvey.length ? "，需填写调查问卷。" : "。") + "课前测试和课后测试独立记录，结束后自动生成个性化学情报告。";
     }
 
     function setQuizPage(type) {
@@ -3929,6 +3986,7 @@
         : "用于课前诊断，识别本章预习薄弱点。";
       document.getElementById("quizProgress").textContent = "未开始";
       document.getElementById("quizBox").innerHTML = "";
+      updateQuizConfigStatus();
       renderSurveyForm();
     }
 
@@ -4111,8 +4169,8 @@
         report,
         report_text: report.title + "；得分 " + avg + "%；薄弱点：" + report.weakPoints.join("、") + "；建议：" + report.remediation.join(" "),
         summary: state.quizAnswers.map((a, i) => (i + 1) + ". " + a.q + " 作答：" + a.answer + " 得分：" + a.score + " 解析：" + (a.explanation || a.feedback)).join(" | "),
-        source: document.getElementById("quizSourceMode").value === "uploaded" ? "用户上传题库" : "斑纹类疾病课程题库",
-        case_source: document.getElementById("quizSourceMode").value === "uploaded" ? "用户上传题库" : "斑纹类疾病课程题库",
+        source: document.getElementById("quizSourceMode").value === "uploaded" ? "教师上传题库" : document.getElementById("quizSourceMode").value === "mixed" ? "斑纹类疾病课程题库 + 教师上传题库" : "斑纹类疾病课程题库",
+        case_source: document.getElementById("quizSourceMode").value === "uploaded" ? "教师上传题库" : document.getElementById("quizSourceMode").value === "mixed" ? "斑纹类疾病课程题库 + 教师上传题库" : "斑纹类疾病课程题库",
         school: "广西医科大学口腔学院"
       });
       setRecords(records);
@@ -4279,6 +4337,16 @@
     document.getElementById("startCurrentQuizBtn").addEventListener("click", () => startQuiz(state.activeQuizType));
     document.getElementById("customQuestionUpload").addEventListener("change", e => handleQuestionUpload(e.target.files[0], "question"));
     document.getElementById("surveyUpload").addEventListener("change", e => handleQuestionUpload(e.target.files[0], "survey"));
+    ["quizSourceMode", "quizQuestionCount", "quizMode"].forEach(id => {
+      document.getElementById(id).addEventListener("change", () => {
+        saveQuizConfig();
+        updateQuizConfigStatus();
+      });
+    });
+    document.getElementById("quizQuestionCount").addEventListener("input", () => {
+      saveQuizConfig();
+      updateQuizConfigStatus();
+    });
     document.getElementById("seedDemoBtn").addEventListener("click", seedDemoData);
     document.getElementById("clearDataBtn").addEventListener("click", () => {
       if (confirm("确认清空本机学情记录？")) {
@@ -4304,6 +4372,7 @@
       });
     });
 
+    loadQuizConfig();
     restoreStudentLogin();
     openAppDb().then(() => {
       saveRecordsToDb(getRecords());
