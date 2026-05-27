@@ -592,6 +592,57 @@
       gap: 8px;
     }
 
+    .report-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .report-metric,
+    .question-review,
+    .survey-panel {
+      border: 1px solid #dbeafe;
+      background: rgba(255,255,255,.9);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .report-metric b {
+      display: block;
+      font-size: 22px;
+      color: var(--brand);
+      margin-top: 4px;
+    }
+
+    .question-review {
+      margin-top: 10px;
+    }
+
+    .question-review.correct {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .question-review.wrong {
+      border-color: #fecaca;
+      background: #fff7f7;
+    }
+
+    .survey-panel textarea,
+    .survey-panel input {
+      width: 100%;
+      margin-top: 6px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-family: inherit;
+    }
+
+    .survey-question {
+      margin-top: 10px;
+    }
+
     .quiz-card {
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -755,7 +806,8 @@
       </div>
       <nav class="nav" aria-label="主导航">
         <button class="active" data-view="student">学生训练</button>
-        <button data-view="quiz">课前/课后测试</button>
+        <button data-view="preQuiz">课前测试</button>
+        <button data-view="postQuiz">课后测试</button>
         <button data-view="teacher">教师学情</button>
       </nav>
       <div class="side-note">
@@ -865,8 +917,9 @@
       <section id="quizView" class="hidden">
         <div class="topbar">
           <div>
-            <h2>课前与课后测试</h2>
+            <h2 id="quizTitle">课前测试</h2>
             <div class="tag-row">
+              <span class="tag" id="quizTypeTag">课前诊断</span>
               <span class="tag">课程题库</span>
               <span class="tag">斑纹类疾病专题</span>
             </div>
@@ -880,15 +933,25 @@
             <div class="panel-body stack">
               <div class="notice" id="quizLoginNotice">请先在“学生训练”页输入学号登录，登录后才能开始测试。</div>
               <div class="quiz-type-grid">
-                <button class="quiz-type-card" id="startPreQuizBtn" type="button">
-                  <b>课前测试</b>
-                  <span>用于课前诊断，识别本章预习薄弱点。</span>
-                </button>
-                <button class="quiz-type-card" id="startPostQuizBtn" type="button">
-                  <b>课后测试</b>
-                  <span>用于课后巩固，生成查漏补缺建议。</span>
+                <div class="quiz-type-card">
+                  <b id="currentQuizLabel">课前测试</b>
+                  <span id="currentQuizDesc">用于课前诊断，识别本章预习薄弱点。</span>
+                </div>
+                <button class="quiz-type-card" id="startCurrentQuizBtn" type="button">
+                  <b>开始测试</b>
+                  <span>按当前设置随机抽题并生成个性化学情报告。</span>
                 </button>
               </div>
+              <label>出题范围
+                <select id="quizSourceMode" style="width:100%; margin-top:8px;">
+                  <option value="builtin">课程题库</option>
+                  <option value="uploaded">仅用户上传题目</option>
+                  <option value="mixed">课程题库 + 上传题目</option>
+                </select>
+              </label>
+              <label>题目数量
+                <input id="quizQuestionCount" type="number" min="1" max="50" value="5" style="width:100%; margin-top:8px;" />
+              </label>
               <label>题型
                 <select id="quizMode" style="width:100%; margin-top:8px;">
                   <option value="mixed">随机混合</option>
@@ -916,6 +979,7 @@
             </div>
             <div class="panel-body">
               <div id="quizBox" class="stack"></div>
+              <div id="surveyBox" class="stack" style="margin-top:14px;"></div>
             </div>
           </section>
         </div>
@@ -2893,7 +2957,8 @@
       quizAnswers: [],
       activeQuizType: "课前测试",
       customQuestions: [],
-      customSurvey: []
+      customSurvey: [],
+      surveyAnswers: []
     };
 
     const chat = document.getElementById("chat");
@@ -3624,13 +3689,25 @@
       }
       state.activeQuizType = type;
       const mode = document.getElementById("quizMode").value;
+      const sourceMode = document.getElementById("quizSourceMode").value;
+      const questionCount = Math.max(1, Math.min(50, Number(document.getElementById("quizQuestionCount").value || 5)));
       const uploadedChoices = state.customQuestions.map(normalizeQuizQuestion).filter(Boolean);
-      let pool = mode === "choice" ? choiceBank.concat(uploadedChoices).map(x => ({ ...x, type: "choice" }))
-        : mode === "short" ? shortBank.map(x => ({ ...x, type: "short" }))
-        : choiceBank.map(x => ({ ...x, type: "choice" })).concat(uploadedChoices.map(x => ({ ...x, type: "choice" })), shortBank.map(x => ({ ...x, type: "short" })));
-      state.quiz = pool.sort(() => Math.random() - .5).slice(0, 5);
+      const builtInChoices = choiceBank.map(x => ({ ...x, type: "choice" }));
+      const builtInShort = shortBank.map(x => ({ ...x, type: "short" }));
+      let choicePool = sourceMode === "uploaded" ? uploadedChoices.map(x => ({ ...x, type: "choice" }))
+        : sourceMode === "mixed" ? builtInChoices.concat(uploadedChoices.map(x => ({ ...x, type: "choice" })))
+        : builtInChoices;
+      if (sourceMode === "uploaded" && !choicePool.length) {
+        alert("请先上传题目，或将出题范围切换为课程题库。");
+        return;
+      }
+      let pool = mode === "choice" ? choicePool
+        : mode === "short" ? builtInShort
+        : choicePool.concat(sourceMode === "uploaded" ? [] : builtInShort);
+      state.quiz = pool.sort(() => Math.random() - .5).slice(0, questionCount);
       state.quizIndex = 0;
       state.quizAnswers = [];
+      renderSurveyForm();
       document.getElementById("quizProgress").textContent = type + "进行中";
       renderQuizQuestion();
     }
@@ -3665,7 +3742,7 @@
         score = keywordScore(answer, q.keys);
         feedback = "参考要点：" + q.ref;
       }
-      state.quizAnswers.push({ q: q.q, answer, score, feedback, weak: q.weak, source: q.source, type: q.type });
+      state.quizAnswers.push({ q: q.q, answer, score, feedback, weak: q.weak, source: q.source, type: q.type, correctAnswer: q.type === "choice" ? q.options[q.answer] : q.ref, explanation: q.explanation || q.ref || feedback });
       state.quizIndex += 1;
       renderQuizQuestion();
     }
@@ -3739,6 +3816,310 @@
         }
       };
       reader.readAsText(file, "utf-8");
+    }
+
+    function normalizeQuizQuestion(item) {
+      if (!item) return null;
+      if (typeof item === "string") return null;
+      const options = Array.isArray(item.options) ? item.options.filter(Boolean) : [];
+      if (!item.q && !item.question && !item.title) return null;
+      const rawAnswer = item.answer ?? item.correct ?? item.correctAnswer ?? 0;
+      const answer = typeof rawAnswer === "number"
+        ? rawAnswer
+        : Math.max(0, ["A", "B", "C", "D", "E"].indexOf(String(rawAnswer).trim().toUpperCase()[0]));
+      if (item.type === "short" || item.ref || item.keys) {
+        return {
+          type: "short",
+          q: item.q || item.question || item.title,
+          keys: item.keys || [],
+          ref: item.ref || item.correctAnswer || item.answer || "请围绕核心概念、临床表现、诊断依据和处理原则作答。",
+          source: item.source || "用户上传题库",
+          weak: item.weak || item.module || "自定义题目",
+          explanation: item.explanation || item.analysis || item.ref || ""
+        };
+      }
+      if (options.length < 2) return null;
+      return {
+        type: "choice",
+        q: item.q || item.question || item.title,
+        options,
+        answer: Math.min(Math.max(answer, 0), options.length - 1),
+        source: item.source || "用户上传题库",
+        weak: item.weak || item.module || "自定义题目",
+        explanation: item.explanation || item.analysis || item.reason || ""
+      };
+    }
+
+    function parseUploadedQuestions(text) {
+      try {
+        const data = JSON.parse(text);
+        if (Array.isArray(data)) return data.map(normalizeQuizQuestion).filter(Boolean);
+        if (Array.isArray(data.questions)) return data.questions.map(normalizeQuizQuestion).filter(Boolean);
+      } catch (e) {}
+      const rows = text.split(/\r?\n/).map(x => x.trim()).filter(Boolean).map(parseCsvLine);
+      return rows.filter(r => r.length >= 4 && !/题干|question/i.test(r[0])).map(r => {
+        const answerLetter = String(r[6] || r[5] || "A").trim().toUpperCase()[0];
+        const answer = Math.max(0, ["A", "B", "C", "D", "E"].indexOf(answerLetter));
+        const options = r.slice(1, 6).filter(Boolean);
+        return {
+          type: "choice",
+          q: r[0],
+          options,
+          answer: Math.min(answer, Math.max(options.length - 1, 0)),
+          source: "用户上传题库",
+          weak: r[7] || r[8] || "自定义题目",
+          explanation: r[8] || r[7] || "请复盘题干关键词、正确选项依据，以及错误选项的排除理由。"
+        };
+      }).filter(q => q.q && q.options.length >= 2);
+    }
+
+    function parseUploadedSurvey(text) {
+      try {
+        const data = JSON.parse(text);
+        const rows = Array.isArray(data) ? data : data.items || data.questions || [];
+        return rows.map((item, index) => {
+          if (typeof item === "string") return { title: item, type: "text", options: [] };
+          return {
+            title: item.title || item.q || item.question || ("问卷题 " + (index + 1)),
+            type: item.type || (Array.isArray(item.options) ? "choice" : "text"),
+            options: Array.isArray(item.options) ? item.options : []
+          };
+        }).filter(x => x.title);
+      } catch (e) {}
+      return text.split(/\r?\n/).map(x => x.trim()).filter(Boolean).map(line => {
+        const parts = parseCsvLine(line);
+        return {
+          title: parts[0],
+          type: parts.length > 1 ? "choice" : "text",
+          options: parts.slice(1).filter(Boolean)
+        };
+      });
+    }
+
+    function handleQuestionUpload(file, kind) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = String(reader.result || "");
+        if (kind === "question") {
+          state.customQuestions = parseUploadedQuestions(text);
+          document.getElementById("uploadBankStatus").textContent = state.customQuestions.length
+            ? "已加载 " + state.customQuestions.length + " 道上传题目，可在出题范围中选择“仅用户上传题库”。"
+            : "未识别到有效题目，请使用 JSON 或 CSV/TXT 格式。";
+        } else {
+          state.customSurvey = parseUploadedSurvey(text);
+          state.surveyAnswers = [];
+          document.getElementById("uploadBankStatus").textContent = state.customSurvey.length
+            ? "已加载 " + state.customSurvey.length + " 项调查问卷，可在本页测试时填写。"
+            : "未识别到有效问卷条目。";
+          renderSurveyForm();
+        }
+      };
+      reader.readAsText(file, "utf-8");
+    }
+
+    function setQuizPage(type) {
+      state.activeQuizType = type;
+      const isPost = type === "课后测试";
+      document.getElementById("quizTitle").textContent = type;
+      document.getElementById("quizTypeTag").textContent = isPost ? "课后巩固" : "课前诊断";
+      document.getElementById("currentQuizLabel").textContent = type;
+      document.getElementById("currentQuizDesc").textContent = isPost
+        ? "用于课后巩固，定位本章遗留薄弱点与二次复习方向。"
+        : "用于课前诊断，识别本章预习薄弱点。";
+      document.getElementById("quizProgress").textContent = "未开始";
+      document.getElementById("quizBox").innerHTML = "";
+      renderSurveyForm();
+    }
+
+    function renderSurveyForm() {
+      const box = document.getElementById("surveyBox");
+      if (!box) return;
+      if (!state.customSurvey.length) {
+        box.innerHTML = "";
+        return;
+      }
+      box.innerHTML = '<div class="survey-panel"><h3>上传调查问卷填写</h3><p class="muted">问卷结果会随本次测试报告保存，便于学生自我反馈和教师了解学习体验。</p>' +
+        state.customSurvey.map((item, i) => {
+          const saved = state.surveyAnswers[i]?.answer || "";
+          if (item.type === "choice" && item.options.length) {
+            return '<div class="survey-question"><b>' + (i + 1) + '. ' + esc(item.title) + '</b>' +
+              '<div class="options">' + item.options.map(op => '<label class="option"><input type="radio" name="survey_' + i + '" value="' + esc(op) + '" ' + (saved === op ? "checked" : "") + '><span>' + esc(op) + '</span></label>').join("") + '</div></div>';
+          }
+          return '<div class="survey-question"><b>' + (i + 1) + '. ' + esc(item.title) + '</b><textarea data-survey-index="' + i + '" rows="2" placeholder="请填写你的反馈">' + esc(saved) + '</textarea></div>';
+        }).join("") +
+        '<button class="secondary" id="saveSurveyBtn" type="button">保存问卷填写</button><span class="auth-status" id="surveySaveStatus"></span></div>';
+      document.getElementById("saveSurveyBtn").addEventListener("click", () => {
+        state.surveyAnswers = state.customSurvey.map((item, i) => {
+          const choice = document.querySelector("input[name='survey_" + i + "']:checked");
+          const text = document.querySelector("[data-survey-index='" + i + "']");
+          return { question: item.title, answer: choice ? choice.value : (text ? text.value.trim() : "") };
+        });
+        document.getElementById("surveySaveStatus").textContent = "已保存 " + state.surveyAnswers.filter(x => x.answer).length + " 项问卷反馈。";
+      });
+    }
+
+    function startQuiz(type) {
+      if (!state.studentLoggedIn) {
+        document.getElementById("quizLoginNotice").textContent = "未登录：请先进入“学生训练”页输入学号并登录，然后再开始测试。";
+        document.getElementById("quizLoginNotice").classList.add("danger-text");
+        return;
+      }
+      state.activeQuizType = type;
+      const mode = document.getElementById("quizMode").value;
+      const sourceMode = document.getElementById("quizSourceMode").value;
+      const questionCount = Math.max(1, Math.min(50, Number(document.getElementById("quizQuestionCount").value || 5)));
+      const uploadedItems = state.customQuestions.map(normalizeQuizQuestion).filter(Boolean);
+      const uploadedChoices = uploadedItems.filter(x => x.type === "choice");
+      const uploadedShort = uploadedItems.filter(x => x.type === "short");
+      const builtInChoices = choiceBank.map(x => normalizeQuizQuestion({ ...x, type: "choice" })).filter(Boolean);
+      const builtInShort = shortBank.map(x => ({ ...x, type: "short" }));
+      let choicePool = sourceMode === "uploaded" ? uploadedChoices
+        : sourceMode === "mixed" ? builtInChoices.concat(uploadedChoices)
+        : builtInChoices;
+      let pool = mode === "choice" ? choicePool
+        : mode === "short" ? (sourceMode === "uploaded" ? uploadedShort : sourceMode === "mixed" ? builtInShort.concat(uploadedShort) : builtInShort)
+        : choicePool.concat(sourceMode === "uploaded" ? uploadedShort : sourceMode === "mixed" ? builtInShort.concat(uploadedShort) : builtInShort);
+      if (!pool.length) {
+        alert("当前模式下没有可用题目，请先上传对应题型，或调整题型/出题范围。");
+        return;
+      }
+      state.quiz = pool.sort(() => Math.random() - .5).slice(0, Math.min(questionCount, pool.length));
+      state.quizIndex = 0;
+      state.quizAnswers = [];
+      state.surveyAnswers = [];
+      renderSurveyForm();
+      document.getElementById("quizProgress").textContent = type + "进行中";
+      renderQuizQuestion();
+    }
+
+    function renderQuizQuestion() {
+      const box = document.getElementById("quizBox");
+      const q = state.quiz[state.quizIndex];
+      document.getElementById("quizProgress").textContent = state.quiz.length ? state.activeQuizType + " " + (state.quizIndex + 1) + " / " + state.quiz.length : "未开始";
+      if (!q) { finishQuiz(); return; }
+      if (q.type === "choice") {
+        box.innerHTML = '<div class="quiz-card"><b>选择题</b><p>' + esc(q.q) + '</p><div class="options">' + q.options.map((op, i) => '<label class="option"><input type="radio" name="choice" value="' + i + '"><span>' + esc(op) + '</span></label>').join("") + '</div><p class="tag">来源：' + esc(q.source || "课程题库") + '</p></div><button class="btn" id="submitQuestion">提交本题</button>';
+      } else {
+        box.innerHTML = '<div class="quiz-card"><b>问答题</b><p>' + esc(q.q) + '</p><textarea class="answer-box" id="shortAnswer" placeholder="请作答"></textarea><p class="tag">来源：' + esc(q.source || "课程题库") + '</p></div><button class="btn" id="submitQuestion">提交本题</button>';
+      }
+      document.getElementById("submitQuestion").addEventListener("click", submitQuestion);
+    }
+
+    function submitQuestion() {
+      const q = state.quiz[state.quizIndex];
+      let answer = "";
+      let score = 0;
+      let feedback = "";
+      if (q.type === "choice") {
+        const picked = document.querySelector("input[name='choice']:checked");
+        if (!picked) return alert("请选择一个选项");
+        answer = q.options[Number(picked.value)];
+        score = Number(picked.value) === q.answer ? 100 : 0;
+        feedback = score === 100 ? "正确" : "参考答案：" + q.options[q.answer];
+      } else {
+        answer = document.getElementById("shortAnswer").value.trim();
+        if (!answer) return alert("请填写问答题答案");
+        score = keywordScore(answer, q.keys);
+        feedback = "参考要点：" + q.ref;
+      }
+      const explanation = q.explanation || q.analysis || q.ref || (q.type === "choice"
+        ? "解析：围绕题干关键词判断病损性质、临床表现、诊断依据和鉴别要点，排除与题干不符的干扰选项。"
+        : feedback);
+      state.quizAnswers.push({
+        q: q.q,
+        answer,
+        score,
+        feedback,
+        weak: q.weak,
+        source: q.source,
+        type: q.type,
+        correctAnswer: q.type === "choice" ? q.options[q.answer] : q.ref,
+        explanation
+      });
+      state.quizIndex += 1;
+      renderQuizQuestion();
+    }
+
+    function generateLearningReport(type, avg, weakList) {
+      const answers = state.quizAnswers;
+      const wrongAnswers = answers.filter(a => a.score < 80);
+      const weakCounts = countItems(weakList.filter(Boolean));
+      const moduleRows = Object.entries(countItems(answers.map(a => a.weak || "未标注模块"))).map(([name, total]) => {
+        const wrong = answers.filter(a => (a.weak || "未标注模块") === name && a.score < 80).length;
+        return { name, total, wrong, accuracy: Math.round((total - wrong) / Math.max(total, 1) * 100) };
+      }).sort((a, b) => b.wrong - a.wrong || a.accuracy - b.accuracy);
+      const topWeak = Object.entries(weakCounts).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+      const level = avg >= 90 ? "优秀" : avg >= 80 ? "良好" : avg >= 60 ? "需要巩固" : "需要重点补缺";
+      const focus = topWeak.length ? topWeak.slice(0, 6) : ["暂无明显薄弱点，建议保持复习节奏"];
+      const remediation = focus.map(w => w + "：回看本章对应概念、临床表现、诊断依据、鉴别诊断和处理原则，并完成同类题二次练习。");
+      const surveyDone = state.surveyAnswers.filter(x => x.answer).length;
+      const surveyNote = state.customSurvey.length
+        ? "已填写问卷 " + surveyDone + " / " + state.customSurvey.length + " 项，可结合主观反馈调整学习策略。"
+        : "未加载调查问卷。";
+      return {
+        title: type + "个性化学情报告",
+        level,
+        score: avg,
+        total: answers.length,
+        correct: answers.filter(a => a.score >= 80).length,
+        weakPoints: focus,
+        moduleRows,
+        missedQuestions: wrongAnswers.map(a => a.q),
+        remediation,
+        surveyNote,
+        surveyAnswers: state.surveyAnswers,
+        answerDetails: answers
+      };
+    }
+
+    function renderLearningReport(report) {
+      const moduleHtml = report.moduleRows.length
+        ? report.moduleRows.map(row => '<tr><td>' + esc(row.name) + '</td><td>' + row.total + '</td><td>' + row.wrong + '</td><td>' + row.accuracy + '%</td></tr>').join("")
+        : '<tr><td colspan="4">暂无模块统计</td></tr>';
+      const detailHtml = report.answerDetails.map((a, i) => {
+        const ok = a.score >= 80;
+        return '<div class="question-review ' + (ok ? "correct" : "wrong") + '"><b>第 ' + (i + 1) + ' 题：' + esc(ok ? "已掌握" : "需复盘") + '</b><p>' + esc(a.q) + '</p><p>你的答案：' + esc(a.answer) + '</p><p>参考答案：' + esc(a.correctAnswer || "见解析") + '</p><p>解析：' + esc(a.explanation || a.feedback) + '</p><p class="tag">薄弱模块：' + esc(a.weak || "未标注") + '｜来源：' + esc(a.source || "课程题库") + '</p></div>';
+      }).join("");
+      const surveyHtml = report.surveyAnswers?.filter(x => x.answer).length
+        ? '<h4>问卷反馈</h4>' + report.surveyAnswers.filter(x => x.answer).map(x => '<p><b>' + esc(x.question) + '</b><br>' + esc(x.answer) + '</p>').join("")
+        : "";
+      return '<div class="report-card"><h3>' + esc(report.title) + '</h3><div class="report-grid"><div class="report-metric">综合表现<b>' + esc(report.level) + '</b></div><div class="report-metric">本次得分<b>' + esc(report.score) + '%</b></div><div class="report-metric">掌握题数<b>' + report.correct + ' / ' + report.total + '</b></div></div><p>薄弱知识点：' + report.weakPoints.map(esc).join("、") + '</p><p>查漏补缺方向：' + report.remediation.map(esc).join(" ") + '</p><table><thead><tr><th>模块</th><th>题数</th><th>需复盘</th><th>掌握率</th></tr></thead><tbody>' + moduleHtml + '</tbody></table><p>' + esc(report.surveyNote) + '</p>' + surveyHtml + '<h4>逐题答案解析</h4>' + detailHtml + '</div>';
+    }
+
+    function finishQuiz() {
+      const box = document.getElementById("quizBox");
+      const type = state.activeQuizType;
+      const avg = Math.round(state.quizAnswers.reduce((s, a) => s + a.score, 0) / Math.max(state.quizAnswers.length, 1));
+      const weak = state.quizAnswers.filter(a => a.score < 80).map(a => a.weak);
+      const weakText = weak.length ? [...new Set(weak)].join("、") : "暂无明显薄弱项";
+      const report = generateLearningReport(type, avg, weak);
+      const records = getRecords();
+      records.unshift({
+        fid: "QUIZ-" + Date.now(),
+        time: nowText(),
+        student: state.studentId,
+        type,
+        caseId: "斑纹类疾病随机题组",
+        analysis_complete: null,
+        accuracy: avg,
+        wrong_knowledge: weakText,
+        weak: weakText,
+        train_difficulty: "基础-中等",
+        case_category: "斑纹类疾病测试",
+        image_accuracy: null,
+        report,
+        report_text: report.title + "；得分 " + avg + "%；薄弱点：" + report.weakPoints.join("、") + "；建议：" + report.remediation.join(" "),
+        summary: state.quizAnswers.map((a, i) => (i + 1) + ". " + a.q + " 作答：" + a.answer + " 得分：" + a.score + " 解析：" + (a.explanation || a.feedback)).join(" | "),
+        source: document.getElementById("quizSourceMode").value === "uploaded" ? "用户上传题库" : "斑纹类疾病课程题库",
+        case_source: document.getElementById("quizSourceMode").value === "uploaded" ? "用户上传题库" : "斑纹类疾病课程题库",
+        school: "广西医科大学口腔学院"
+      });
+      setRecords(records);
+      box.innerHTML = renderLearningReport(report);
+      document.getElementById("quizProgress").textContent = "已完成";
+      refreshMetrics();
+      renderTeacher();
     }
 
     function countItems(items) {
@@ -3895,8 +4276,7 @@
     });
 
     document.getElementById("resetBtn").addEventListener("click", () => resetToMenu());
-    document.getElementById("startPreQuizBtn").addEventListener("click", () => startQuiz("课前测试"));
-    document.getElementById("startPostQuizBtn").addEventListener("click", () => startQuiz("课后测试"));
+    document.getElementById("startCurrentQuizBtn").addEventListener("click", () => startQuiz(state.activeQuizType));
     document.getElementById("customQuestionUpload").addEventListener("change", e => handleQuestionUpload(e.target.files[0], "question"));
     document.getElementById("surveyUpload").addEventListener("change", e => handleQuestionUpload(e.target.files[0], "survey"));
     document.getElementById("seedDemoBtn").addEventListener("click", seedDemoData);
@@ -3915,9 +4295,11 @@
       btn.addEventListener("click", () => {
         document.querySelectorAll(".nav button").forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
+        const isQuiz = btn.dataset.view === "preQuiz" || btn.dataset.view === "postQuiz";
         document.getElementById("studentView").classList.toggle("hidden", btn.dataset.view !== "student");
-        document.getElementById("quizView").classList.toggle("hidden", btn.dataset.view !== "quiz");
+        document.getElementById("quizView").classList.toggle("hidden", !isQuiz);
         document.getElementById("teacherView").classList.toggle("hidden", btn.dataset.view !== "teacher");
+        if (isQuiz) setQuizPage(btn.dataset.view === "postQuiz" ? "课后测试" : "课前测试");
         if (btn.dataset.view === "teacher") updateTeacherGate();
       });
     });
