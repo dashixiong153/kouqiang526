@@ -4259,17 +4259,32 @@
       const wrongAnswers = answers.filter(a => a.score < 80);
       const weakCounts = countItems(weakList.filter(Boolean));
       const moduleRows = Object.entries(countItems(answers.map(a => a.weak || "未标注模块"))).map(([name, total]) => {
-        const wrong = answers.filter(a => (a.weak || "未标注模块") === name && a.score < 80).length;
-        return { name, total, wrong, accuracy: Math.round((total - wrong) / Math.max(total, 1) * 100) };
+        const moduleAnswers = answers.filter(a => (a.weak || "未标注模块") === name);
+        const wrongItems = moduleAnswers.filter(a => a.score < 80);
+        return {
+          name,
+          total,
+          wrong: wrongItems.length,
+          accuracy: Math.round((total - wrongItems.length) / Math.max(total, 1) * 100),
+          questions: wrongItems.map(a => a.q),
+          studentAnswers: wrongItems.map(a => a.answer),
+          correctAnswers: wrongItems.map(a => a.correctAnswer),
+          diagnosis: buildModuleDiagnosis(name, wrongItems, moduleAnswers),
+          action: buildModuleAction(name, wrongItems)
+        };
       }).sort((a, b) => b.wrong - a.wrong || a.accuracy - b.accuracy);
       const topWeak = Object.entries(weakCounts).sort((a, b) => b[1] - a[1]).map(x => x[0]);
       const level = avg >= 90 ? "优秀" : avg >= 80 ? "良好" : avg >= 60 ? "需要巩固" : "需要重点补缺";
       const focus = topWeak.length ? topWeak.slice(0, 6) : ["暂无明显薄弱点，建议保持复习节奏"];
-      const remediation = focus.map(w => w + "：回看本章对应概念、临床表现、诊断依据、鉴别诊断和处理原则，并完成同类题二次练习。");
+      const priorityRows = moduleRows.filter(row => row.wrong > 0).slice(0, 4);
+      const remediation = priorityRows.length
+        ? priorityRows.map(row => row.name + "：" + row.action)
+        : ["本次测试未出现明显失分模块。建议用 5 分钟复述本章白色/红色病损的诊断路径，再做 3 道同类题保持手感。"];
       const surveyDone = state.surveyAnswers.filter(x => x.answer).length;
       const surveyNote = state.customSurvey.length
         ? "已填写问卷 " + surveyDone + " / " + state.customSurvey.length + " 项，可结合主观反馈调整学习策略。"
         : "未加载调查问卷。";
+      const performanceSummary = buildPerformanceSummary(type, avg, answers, wrongAnswers, priorityRows);
       return {
         title: type + "个性化学情报告",
         level,
@@ -4278,6 +4293,8 @@
         correct: answers.filter(a => a.score >= 80).length,
         weakPoints: focus,
         moduleRows,
+        priorityRows,
+        performanceSummary,
         missedQuestions: wrongAnswers.map(a => a.q),
         remediation,
         surveyNote,
@@ -4286,9 +4303,39 @@
       };
     }
 
+    function buildPerformanceSummary(type, avg, answers, wrongAnswers, priorityRows) {
+      const total = answers.length;
+      const correct = answers.filter(a => a.score >= 80).length;
+      if (!total) return type + "未形成有效答题数据。";
+      if (!wrongAnswers.length) return "本次共 " + total + " 题，掌握 " + correct + " 题。当前不是知识漏洞型失分，重点保持对白斑、红斑、扁平苔藓等斑纹类疾病的鉴别路径。";
+      const modules = priorityRows.map(row => row.name + "（错 " + row.wrong + "/" + row.total + "）").join("、");
+      const firstWrong = wrongAnswers[0];
+      return "本次共 " + total + " 题，掌握 " + correct + " 题，得分 " + avg + "%。主要失分集中在：" + modules + "。代表性错题是“" + firstWrong.q + "”，学生答案为“" + firstWrong.answer + "”，参考答案为“" + firstWrong.correctAnswer + "”，提示该知识点不是单纯记忆问题，而是题干限定词与疾病特征匹配不足。";
+    }
+
+    function buildModuleDiagnosis(moduleName, wrongItems, moduleAnswers) {
+      if (!wrongItems.length) return "该模块本次答题稳定，暂未暴露明显漏洞。";
+      const stems = wrongItems.map(a => a.q).join("；");
+      if (/白斑|癌变|癌前/.test(moduleName + stems)) return "问题集中在口腔白斑与癌前风险判断：需要明确白斑的定义、不能被擦去的白色斑块特征、上皮异常增生/癌变风险，以及何时需要活检和长期随访。";
+      if (/红斑/.test(moduleName + stems)) return "问题集中在红斑危险性识别：红色病损虽不一定面积大，但恶变风险高，不能按普通炎症或创伤性病损处理。";
+      if (/扁平苔藓|苔藓/.test(moduleName + stems)) return "问题集中在扁平苔藓样病损识别：应抓住网状珠光白纹、双侧或多部位、糜烂疼痛及病理鉴别，避免与白斑、念珠菌感染混淆。";
+      if (/念珠菌|真菌/.test(moduleName + stems)) return "问题集中在念珠菌感染判断：假膜是否可擦去、擦后黏膜红痛、义齿/免疫/抗生素等诱因是关键。";
+      if (/鉴别/.test(moduleName + stems)) return "问题集中在鉴别诊断：答题时没有把颜色、形态、能否擦去、病程、疼痛、危险因素和病理需要串成排除链。";
+      if (/治疗|处理|随访/.test(moduleName + stems)) return "问题集中在处理原则：需要先分层风险，再决定去刺激、药物控制、活检、转诊和随访频率，不能只写笼统治疗。";
+      return "该模块错题显示：学生能够识别部分关键词，但没有把题干中的病损特征与标准诊断依据逐一对应。";
+    }
+
+    function buildModuleAction(moduleName, wrongItems) {
+      const wrongTitles = wrongItems.slice(0, 2).map(a => "“" + a.q + "”").join("、");
+      if (/白斑|癌变|癌前/.test(moduleName + wrongTitles)) return "重画一张“白斑-红斑-扁平苔藓-念珠菌”对照表，重点列出能否擦去、癌变风险、是否需活检；随后重做错题 " + wrongTitles + "。";
+      if (/鉴别|扁平苔藓|苔藓/.test(moduleName + wrongTitles)) return "按“部位-颜色-形态-病程-疼痛-病理”六列复盘错题 " + wrongTitles + "，每个干扰选项写 1 条排除理由。";
+      if (/治疗|处理|随访/.test(moduleName + wrongTitles)) return "把处理原则拆成“去除刺激因素、控制症状、明确诊断、风险告知、复查随访”五步，重新写出错题 " + wrongTitles + " 的方案。";
+      return "针对错题 " + wrongTitles + "，先标出题干限定词，再写出正确答案成立依据和每个错误选项的排除点。";
+    }
+
     function renderLearningReport(report) {
       const moduleHtml = report.moduleRows.length
-        ? report.moduleRows.map(row => '<tr><td>' + esc(row.name) + '</td><td>' + row.total + '</td><td>' + row.wrong + '</td><td>' + row.accuracy + '%</td></tr>').join("")
+        ? report.moduleRows.map(row => '<tr><td>' + esc(row.name) + '</td><td>' + row.total + '</td><td>' + row.wrong + '</td><td>' + row.accuracy + '%</td><td>' + esc(row.diagnosis) + '</td><td>' + esc(row.action) + '</td></tr>').join("")
         : '<tr><td colspan="4">暂无模块统计</td></tr>';
       const detailHtml = report.answerDetails.map((a, i) => {
         const ok = a.score >= 80;
@@ -4297,7 +4344,7 @@
       const surveyHtml = report.surveyAnswers?.filter(x => x.answer).length
         ? '<h4>问卷反馈</h4>' + report.surveyAnswers.filter(x => x.answer).map(x => '<p><b>' + esc(x.question) + '</b><br>' + esc(x.answer) + '</p>').join("")
         : "";
-      return '<div class="report-card"><h3>' + esc(report.title) + '</h3><div class="report-grid"><div class="report-metric">综合表现<b>' + esc(report.level) + '</b></div><div class="report-metric">本次得分<b>' + esc(report.score) + '%</b></div><div class="report-metric">掌握题数<b>' + report.correct + ' / ' + report.total + '</b></div></div><p>薄弱知识点：' + report.weakPoints.map(esc).join("、") + '</p><p>查漏补缺方向：' + report.remediation.map(esc).join(" ") + '</p><table><thead><tr><th>模块</th><th>题数</th><th>需复盘</th><th>掌握率</th></tr></thead><tbody>' + moduleHtml + '</tbody></table><p>' + esc(report.surveyNote) + '</p>' + surveyHtml + '<h4>逐题答案解析</h4>' + detailHtml + '</div>';
+      return '<div class="report-card"><h3>' + esc(report.title) + '</h3><div class="report-grid"><div class="report-metric">综合表现<b>' + esc(report.level) + '</b></div><div class="report-metric">本次得分<b>' + esc(report.score) + '%</b></div><div class="report-metric">掌握题数<b>' + report.correct + ' / ' + report.total + '</b></div></div><h4>本次诊断</h4><p>' + esc(report.performanceSummary || "") + '</p><h4>模块问题定位</h4><table><thead><tr><th>模块</th><th>题数</th><th>错题</th><th>掌握率</th><th>问题判断</th><th>补救任务</th></tr></thead><tbody>' + moduleHtml + '</tbody></table><h4>优先补缺任务</h4><ol>' + report.remediation.map(x => '<li>' + esc(x) + '</li>').join("") + '</ol><p>' + esc(report.surveyNote) + '</p>' + surveyHtml + '<h4>逐题答案解析</h4>' + detailHtml + '</div>';
     }
 
     function finishQuiz() {
@@ -4324,7 +4371,7 @@
         case_category: "斑纹类疾病测试",
         image_accuracy: null,
         report,
-        report_text: report.title + "；得分 " + avg + "%；薄弱点：" + report.weakPoints.join("、") + "；建议：" + report.remediation.join(" "),
+        report_text: (report.performanceSummary || report.title + "，得分 " + avg + "%") + " 重点补缺：" + report.remediation.join("；"),
         summary: state.quizAnswers.map((a, i) => (i + 1) + ". " + a.q + " 作答：" + a.answer + " 得分：" + a.score + " 解析：" + (a.explanation || a.feedback)).join(" | "),
         answer_details: state.quizAnswers,
         source: quizSource,
@@ -4375,7 +4422,10 @@
       if (!record) return;
       document.querySelectorAll("#teacherContent > .topbar, #teacherContent > section.panel:not(#teacherDetailPage)").forEach(el => el.classList.add("hidden"));
       document.getElementById("teacherDetailPage").classList.remove("hidden");
-      document.getElementById("teacherDetailContent").innerHTML = '<div class="report-card"><h3>' + esc(record.student) + ' - ' + esc(record.type) + '</h3><div class="report-grid"><div class="report-metric">得分<b>' + esc(record.accuracy) + '%</b></div><div class="report-metric">薄弱模块<b>' + esc(record.weak || "暂无") + '</b></div><div class="report-metric">来源<b>' + esc(record.source || record.case_source || "未标注") + '</b></div></div><p>时间：' + esc(record.time) + '</p><p>病例/题组：' + esc(record.caseId) + '</p><p>学情报告：' + esc(record.report_text || record.report?.weakPoints?.join("、") || "暂无报告") + '</p></div>' + buildRecordDetailHtml(record);
+      const reportBlock = record.report?.performanceSummary
+        ? '<h4>学情诊断</h4><p>' + esc(record.report.performanceSummary) + '</p><h4>优先补缺任务</h4><ol>' + (record.report.remediation || []).map(x => '<li>' + esc(x) + '</li>').join("") + '</ol>'
+        : '<p>学情报告：' + esc(record.report_text || record.report?.weakPoints?.join("、") || "暂无报告") + '</p>';
+      document.getElementById("teacherDetailContent").innerHTML = '<div class="report-card"><h3>' + esc(record.student) + ' - ' + esc(record.type) + '</h3><div class="report-grid"><div class="report-metric">得分<b>' + esc(record.accuracy) + '%</b></div><div class="report-metric">薄弱模块<b>' + esc(record.weak || "暂无") + '</b></div><div class="report-metric">来源<b>' + esc(record.source || record.case_source || "未标注") + '</b></div></div><p>时间：' + esc(record.time) + '</p><p>病例/题组：' + esc(record.caseId) + '</p>' + reportBlock + '</div>' + buildRecordDetailHtml(record);
     }
 
     function backToTeacherList() {
