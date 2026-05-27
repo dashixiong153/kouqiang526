@@ -289,9 +289,15 @@
       cursor: pointer;
       color: #fff;
       background: var(--brand);
+      font-weight: 700;
+      transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
     }
 
-    .btn:hover { background: var(--brand-deep); }
+    .btn:hover {
+      background: var(--brand-deep);
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(15, 118, 110, .18);
+    }
     .btn.secondary { color: var(--ink); background: #fff; border-color: var(--line); }
     .btn.secondary:hover { background: #eef6f5; }
     .btn.warn { background: var(--accent); }
@@ -686,22 +692,31 @@
 
     table {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
       font-size: 13px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
     }
 
     th, td {
       border-bottom: 1px solid var(--line);
-      padding: 10px 8px;
+      padding: 12px 10px;
       text-align: left;
       vertical-align: top;
     }
 
     th {
-      color: #314353;
-      background: #f2f6f8;
+      color: #203442;
+      background: #eef6f5;
       font-weight: 700;
     }
+
+    tr:last-child td { border-bottom: 0; }
+
+    tbody tr:hover td { background: #fbfefd; }
 
     .filters {
       display: flex;
@@ -765,6 +780,100 @@
       font-size: 15px;
     }
 
+    .teacher-analytics-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .insight-strip {
+      border: 1px solid #bce7df;
+      background: linear-gradient(180deg, #f0fdfa 0%, #ffffff 100%);
+      border-radius: 8px;
+      padding: 13px 14px;
+      color: #134e4a;
+      font-size: 13px;
+    }
+
+    .donut-wrap {
+      display: grid;
+      grid-template-columns: 116px minmax(0, 1fr);
+      gap: 14px;
+      align-items: center;
+    }
+
+    .donut {
+      width: 104px;
+      height: 104px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      background:
+        radial-gradient(circle at center, #fff 0 56%, transparent 57%),
+        conic-gradient(var(--brand) calc(var(--value, 0) * 1%), #e7edf2 0);
+      border: 1px solid var(--line);
+    }
+
+    .donut b,
+    .donut span {
+      display: block;
+      grid-area: 1 / 1;
+    }
+
+    .donut b {
+      font-size: 22px;
+      color: var(--brand-deep);
+      transform: translateY(-8px);
+    }
+
+    .donut span {
+      font-size: 11px;
+      color: var(--muted);
+      transform: translateY(18px);
+    }
+
+    .mini-bars .bar-row {
+      grid-template-columns: 56px minmax(0, 1fr) 24px;
+      margin: 6px 0;
+    }
+
+    .compare-row {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr) minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      margin: 8px 0;
+      font-size: 12px;
+    }
+
+    .compare-row > span {
+      color: var(--ink);
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .compare-row small {
+      color: var(--muted);
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .bar-fill.pre { background: #2563eb; }
+    .bar-fill.post { background: #0f766e; }
+
+    .learning-report details {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfdfe;
+    }
+
+    .learning-report summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--brand-deep);
+    }
+
     .bar-row {
       display: grid;
       grid-template-columns: 110px minmax(0, 1fr) 42px;
@@ -794,6 +903,7 @@
       .app { grid-template-columns: 1fr; }
       aside { position: static; }
       .grid, .quiz-shell, .chart-grid { grid-template-columns: 1fr; }
+      .teacher-analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .menu-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .chat { height: 500px; }
     }
@@ -801,7 +911,7 @@
     @media (max-width: 640px) {
       main { padding: 14px; }
       .topbar { align-items: flex-start; flex-direction: column; }
-      .menu-grid, .metric-grid { grid-template-columns: 1fr; }
+      .menu-grid, .metric-grid, .teacher-analytics-grid, .donut-wrap, .compare-row { grid-template-columns: 1fr; }
       .msg { max-width: 100%; }
       .chat-form { grid-template-columns: 1fr; }
     }
@@ -1079,16 +1189,25 @@
               <div class="metric"><b id="teacherAccuracy">0%</b><span>平均正确率</span></div>
               <div class="metric"><b id="teacherWeak">暂无</b><span>高频薄弱模块</span></div>
             </div>
-            <div class="chart-grid">
+            <div class="chart-grid teacher-analytics-grid">
               <div class="chart-card">
                 <h4>薄弱模块 Top 6</h4>
                 <div id="weakChart"></div>
               </div>
               <div class="chart-card">
-                <h4>训练难度分布</h4>
-                <div id="difficultyChart"></div>
+                <h4>课前测掌握度</h4>
+                <div id="preQuizChart"></div>
+              </div>
+              <div class="chart-card">
+                <h4>课后测掌握度</h4>
+                <div id="postQuizChart"></div>
+              </div>
+              <div class="chart-card">
+                <h4>课前/课后薄弱点对比</h4>
+                <div id="quizWeakCompare"></div>
               </div>
             </div>
+            <div class="insight-strip" id="teachingAdvice">暂无足够数据生成教学建议。</div>
             <div class="filters">
               <input id="filterStudent" placeholder="按学生筛选" />
               <select id="filterType">
@@ -1106,11 +1225,10 @@
                     <th>时间</th>
                     <th>学生</th>
                     <th>类型</th>
-                    <th>病例/题组</th>
                     <th>正确率</th>
-                    <th>薄弱知识点</th>
-                    <th>个性化报告</th>
-                    <th>具体作答</th>
+                    <th>核心薄弱点</th>
+                    <th>个性化报告摘要</th>
+                    <th>详情</th>
                   </tr>
                 </thead>
                 <tbody id="recordTable"></tbody>
@@ -4312,27 +4430,34 @@
       const answers = state.quizAnswers;
       const wrongAnswers = answers.filter(a => a.score < 80);
       const correct = answers.length - wrongAnswers.length;
-      const moduleRows = Object.entries(countItems(answers.map(a => a.weak || "未标注模块"))).map(([name, total]) => {
-        const moduleAnswers = answers.filter(a => (a.weak || "未标注模块") === name);
+      const moduleRows = Object.entries(countItems(answers.map(a => normalizeWeakLabel(a.weak || "未标注模块")))).map(([name, total]) => {
+        const moduleAnswers = answers.filter(a => normalizeWeakLabel(a.weak || "未标注模块") === name);
         const wrongItems = moduleAnswers.filter(a => a.score < 80);
         return {
           name,
           total,
           wrong: wrongItems.length,
           accuracy: Math.round((total - wrongItems.length) / Math.max(total, 1) * 100),
-          questions: wrongItems.map(a => a.q),
-          action: buildConciseAction(name, wrongItems)
+          questions: wrongItems.map(a => a.q)
         };
       }).sort((a, b) => b.wrong - a.wrong || a.accuracy - b.accuracy || b.total - a.total);
       const priorityRows = moduleRows.filter(row => row.wrong > 0).slice(0, 5);
       const weakItems = priorityRows.map(row => row.name);
       const level = avg >= 90 ? "优秀" : avg >= 80 ? "良好" : avg >= 60 ? "需要巩固" : "需要重点补缺";
+      const masteryBand = avg >= 90 ? "本章基础概念和临床判断较稳，可以进入病例综合推理训练。" : avg >= 80 ? "整体掌握较好，但仍有少数知识点需要定向复盘。" : avg >= 60 ? "已具备部分基础，但知识点之间的鉴别链条还不够稳定。" : "当前基础薄弱，建议先回到本章核心概念和典型表现进行系统补缺。";
       const problemSummary = wrongAnswers.length
-        ? "本次共 " + answers.length + " 题，答对 " + correct + " 题，得分 " + avg + "%；失分主要集中在 " + weakItems.join("、") + "。"
-        : "本次共 " + answers.length + " 题，答对 " + correct + " 题，得分 " + avg + "%；暂未发现明显薄弱模块。";
-      const remediation = priorityRows.length
-        ? priorityRows.map(row => row.name + "：" + row.action)
-        : ["保持当前复习节奏，建议继续完成同章同类题巩固诊断依据、鉴别要点和处理原则。"];
+        ? type + "共 " + answers.length + " 题，答对 " + correct + " 题，得分 " + avg + "% 。" + masteryBand + " 失分主要集中在 " + weakItems.join("、") + "。"
+        : type + "共 " + answers.length + " 题全部掌握，得分 " + avg + "% 。" + masteryBand;
+      const weakInsights = priorityRows.length
+        ? priorityRows.map(row => ({
+            name: row.name,
+            wrong: row.wrong,
+            total: row.total,
+            insight: buildWeakInsight(row.name, row.accuracy),
+            suggestion: buildStudySuggestion(row.name, row.accuracy)
+          }))
+        : [{ name: "暂无明显薄弱点", wrong: 0, total: answers.length, insight: "本次未暴露集中失分模块。", suggestion: "继续保持错题复盘习惯，建议用病例题检验迁移应用能力。" }];
+      const remediation = weakInsights.map(item => item.name + "：" + item.suggestion);
       const surveyDone = state.surveyAnswers.filter(x => x.answer).length;
       const surveyNote = state.customSurvey.length
         ? "问卷已填写 " + surveyDone + " / " + state.customSurvey.length + " 项，可结合主观反馈调整复习安排。"
@@ -4345,15 +4470,42 @@
         correct,
         weakPoints: weakItems.length ? weakItems : ["暂无明显薄弱点"],
         weakItems: weakItems.length ? weakItems : ["暂无明显薄弱点"],
+        weakInsights,
         moduleRows,
         priorityRows,
         problemSummary,
+        reportAbstract: buildReportAbstract(type, avg, correct, answers.length, weakItems),
         missedQuestions: wrongAnswers.map(a => a.q),
         remediation,
         surveyNote,
         surveyAnswers: state.surveyAnswers,
         answerDetails: answers
       };
+    }
+
+    function buildWeakInsight(name, accuracy) {
+      if (accuracy >= 80) return "该模块偶发失分，主要是审题或选项排除不够稳。";
+      if (/白斑|癌变|癌前|红斑/.test(name)) return "该模块提示对白色/红色斑纹类病损的风险分层、癌变警示和活检指征掌握不足。";
+      if (/扁平苔藓|苔藓/.test(name)) return "该模块提示对网状白纹、糜烂型表现、苔藓样反应与病理依据的联系还不够牢固。";
+      if (/念珠菌|真菌/.test(name)) return "该模块提示对可擦去假膜、诱因和抗真菌处理原则的识别需要加强。";
+      if (/鉴别/.test(name)) return "该模块提示横向鉴别链条不清，容易只记疾病名称而忽略排除依据。";
+      if (/治疗|处理|随访/.test(name)) return "该模块提示治疗顺序、风险告知和随访管理还没有形成规范流程。";
+      return "该模块存在集中失分，说明概念记忆与临床应用之间还需要再连接。";
+    }
+
+    function buildStudySuggestion(name, accuracy) {
+      const prefix = accuracy < 60 ? "先回看教材对应小节并重做同类题" : "围绕错题做一次定向复盘";
+      if (/白斑|癌变|癌前|红斑/.test(name)) return prefix + "，重点整理高危部位、非均质型表现、活检指征和随访频率。";
+      if (/扁平苔藓|苔藓/.test(name)) return prefix + "，用表格比较扁平苔藓、白斑、念珠菌病和盘状红斑狼疮。";
+      if (/念珠菌|真菌/.test(name)) return prefix + "，按诱因、临床表现、涂片检查和处理原则四项复盘。";
+      if (/治疗|处理|随访/.test(name)) return prefix + "，把处理流程拆成去刺激、控症状、明确诊断、风险监测和复诊随访。";
+      return prefix + "，每题写出正确答案成立依据和至少一个干扰项排除理由。";
+    }
+
+    function buildReportAbstract(type, avg, correct, total, weakItems) {
+      const base = type + "得分 " + avg + "%（" + correct + "/" + total + "）。";
+      if (!weakItems.length) return base + "本次表现稳定，建议继续进行病例化迁移训练。";
+      return base + "优先补缺：" + weakItems.slice(0, 3).join("、") + "。";
     }
 
     function buildConciseAction(moduleName, wrongItems) {
@@ -4369,10 +4521,10 @@
     }
 
     function renderLearningReport(report) {
-      const weakRows = (report.priorityRows || report.moduleRows || []).filter(row => row.wrong > 0);
+      const weakRows = report.weakInsights || [];
       const moduleHtml = weakRows.length
-        ? weakRows.map(row => '<tr><td>' + esc(row.name) + '</td><td>' + row.wrong + ' / ' + row.total + '</td><td>' + row.accuracy + '%</td><td>' + esc(row.questions.slice(0, 2).join("；") || "-") + '</td><td>' + esc(row.action) + '</td></tr>').join("")
-        : '<tr><td colspan="5">暂无明显薄弱模块</td></tr>';
+        ? weakRows.map(row => '<tr><td>' + esc(row.name) + '</td><td>' + row.wrong + ' / ' + row.total + '</td><td>' + esc(row.insight) + '</td><td>' + esc(row.suggestion) + '</td></tr>').join("")
+        : '<tr><td colspan="4">暂无明显薄弱模块</td></tr>';
       const detailHtml = report.answerDetails.map((a, i) => {
         const ok = a.score >= 80;
         return '<div class="question-review ' + (ok ? "correct" : "wrong") + '"><b>第 ' + (i + 1) + ' 题：' + esc(ok ? "已掌握" : "需复盘") + '</b><p>' + esc(a.q) + '</p><p>你的答案：' + esc(a.answer) + '</p><p>参考答案：' + esc(a.correctAnswer || "见解析") + '</p><p>答案解析：' + esc(a.explanation || a.feedback || "暂无解析") + '</p><p class="tag">知识点：' + esc(a.weak || "未标注") + '｜来源：' + esc(a.source || "课程题库") + '</p></div>';
@@ -4380,7 +4532,7 @@
       const surveyHtml = report.surveyAnswers?.filter(x => x.answer).length
         ? '<h4>问卷反馈</h4>' + report.surveyAnswers.filter(x => x.answer).map(x => '<p><b>' + esc(x.question) + '</b><br>' + esc(x.answer) + '</p>').join("")
         : "";
-      return '<div class="report-card"><h3>' + esc(report.title) + '</h3><div class="report-grid"><div class="report-metric">综合表现<b>' + esc(report.level) + '</b></div><div class="report-metric">本次得分<b>' + esc(report.score) + '%</b></div><div class="report-metric">答对题数<b>' + report.correct + ' / ' + report.total + '</b></div></div><h4>问题概览</h4><p>' + esc(report.problemSummary || "") + '</p><h4>薄弱模块与知识点</h4><table><thead><tr><th>模块/知识点</th><th>错题数</th><th>掌握率</th><th>代表错题</th><th>学习建议</th></tr></thead><tbody>' + moduleHtml + '</tbody></table><h4>学习建议</h4><ol>' + report.remediation.map(x => '<li>' + esc(x) + '</li>').join("") + '</ol><p>' + esc(report.surveyNote) + '</p>' + surveyHtml + '<h4>逐题答案解析</h4>' + detailHtml + '</div>';
+      return '<div class="report-card learning-report"><h3>' + esc(report.title) + '</h3><div class="report-grid"><div class="report-metric">综合表现<b>' + esc(report.level) + '</b></div><div class="report-metric">本次得分<b>' + esc(report.score) + '%</b></div><div class="report-metric">答对题数<b>' + report.correct + ' / ' + report.total + '</b></div></div><h4>学情总结</h4><p>' + esc(report.problemSummary || "") + '</p><h4>薄弱知识点诊断</h4><table><thead><tr><th>知识点</th><th>失分</th><th>问题判断</th><th>学习建议</th></tr></thead><tbody>' + moduleHtml + '</tbody></table><h4>复盘路径</h4><ol>' + report.remediation.map(x => '<li>' + esc(x) + '</li>').join("") + '</ol><p>' + esc(report.surveyNote) + '</p>' + surveyHtml + '<details open><summary>逐题答案解析</summary>' + detailHtml + '</details></div>';
     }
 
     function finishQuiz() {
@@ -4462,7 +4614,8 @@
       const reportBlock = record.report?.problemSummary
         ? '<h4>问题概览</h4><p>' + esc(record.report.problemSummary) + '</p><h4>薄弱模块与知识点</h4><p>' + esc((record.report.weakItems || record.report.weakPoints || []).join("、")) + '</p><h4>改进建议</h4><ol>' + (record.report.remediation || []).map(x => '<li>' + esc(x) + '</li>').join("") + '</ol>'
         : '<p>学情报告：' + esc(record.report_text || record.report?.weakPoints?.join("、") || "暂无报告") + '</p>';
-      document.getElementById("teacherDetailContent").innerHTML = '<div class="report-card"><h3>' + esc(record.student) + ' - ' + esc(record.type) + '</h3><div class="report-grid"><div class="report-metric">得分<b>' + esc(record.accuracy) + '%</b></div><div class="report-metric">薄弱模块<b>' + esc(record.weak || "暂无") + '</b></div><div class="report-metric">来源<b>' + esc(record.source || record.case_source || "未标注") + '</b></div></div><p>时间：' + esc(record.time) + '</p><p>病例/题组：' + esc(record.caseId) + '</p>' + reportBlock + '</div>' + buildRecordDetailHtml(record);
+      const weakLabels = collectWeakLabels(record).slice(0, 5).join("、") || "暂无明显薄弱点";
+      document.getElementById("teacherDetailContent").innerHTML = '<div class="report-card"><h3>' + esc(record.student) + ' - ' + esc(record.type) + '</h3><div class="report-grid"><div class="report-metric">得分<b>' + esc(record.accuracy) + '%</b></div><div class="report-metric">核心薄弱点<b>' + esc(weakLabels) + '</b></div><div class="report-metric">来源<b>' + esc(record.source || record.case_source || "未标注") + '</b></div></div><p>时间：' + esc(record.time) + '</p><p>病例/题组：' + esc(record.caseId) + '</p>' + reportBlock + '</div>' + buildRecordDetailHtml(record);
     }
 
     function backToTeacherList() {
@@ -4470,33 +4623,79 @@
       document.querySelectorAll("#teacherContent > .topbar, #teacherContent > section.panel:not(#teacherDetailPage)").forEach(el => el.classList.remove("hidden"));
     }
 
+    function normalizeWeakLabel(text) {
+      let value = String(text || "").replace(/\s+/g, " ").trim();
+      if (!value || value === "null" || value === "undefined") return "未标注模块";
+      value = value.replace(/^知识点[:：]/, "").replace(/^考查/, "");
+      value = value.split(/[；;。\n]/)[0].trim();
+      if (/正确答案|答案解析|其他选项|解析[:：]|学生答案|参考答案/.test(value)) return "题目解析内容（已过滤）";
+      if (value.length > 28) value = value.slice(0, 28) + "…";
+      return value || "未标注模块";
+    }
+
+    function collectWeakLabels(record) {
+      const fromReport = (record.report?.weakItems || record.report?.weakPoints || []).map(normalizeWeakLabel);
+      const raw = String(record.weak || record.wrong_knowledge || "").split(/、|,|，|;|；/).map(normalizeWeakLabel);
+      return [...fromReport, ...raw].filter(x => x && x !== "暂无明显薄弱项" && x !== "暂无明显薄弱点" && x !== "题目解析内容（已过滤）");
+    }
+
+    function avgOf(records) {
+      return records.length ? Math.round(records.reduce((s, r) => s + Number(r.accuracy || 0), 0) / records.length) : 0;
+    }
+
+    function renderMasteryChart(containerId, records, label) {
+      const avg = avgOf(records);
+      const bands = {
+        "优秀": records.filter(r => Number(r.accuracy || 0) >= 90).length,
+        "良好": records.filter(r => Number(r.accuracy || 0) >= 80 && Number(r.accuracy || 0) < 90).length,
+        "待巩固": records.filter(r => Number(r.accuracy || 0) >= 60 && Number(r.accuracy || 0) < 80).length,
+        "需补缺": records.filter(r => Number(r.accuracy || 0) < 60).length
+      };
+      const html = '<div class="donut-wrap"><div class="donut" style="--value:' + avg + '"><b>' + avg + '%</b><span>平均掌握</span></div><div class="mini-bars">' + Object.entries(bands).map(([name, value]) => '<div class="bar-row"><span>' + esc(name) + '</span><div class="bar-track"><div class="bar-fill" style="width:' + (records.length ? Math.round(value / records.length * 100) : 0) + '%"></div></div><b>' + value + '</b></div>').join("") + '</div></div>';
+      document.getElementById(containerId).innerHTML = records.length ? html : '<div class="auth-status">暂无' + label + '数据</div>';
+    }
+
+    function renderWeakCompare(containerId, preRecords, postRecords) {
+      const pre = countItems(preRecords.flatMap(collectWeakLabels));
+      const post = countItems(postRecords.flatMap(collectWeakLabels));
+      const names = [...new Set(Object.keys(pre).concat(Object.keys(post)))].sort((a, b) => (post[b] || 0) + (pre[b] || 0) - ((post[a] || 0) + (pre[a] || 0))).slice(0, 5);
+      document.getElementById(containerId).innerHTML = names.length ? names.map(name => '<div class="compare-row"><span title="' + esc(name) + '">' + esc(name) + '</span><div><small>课前 '+ (pre[name] || 0) + '</small><div class="bar-track"><div class="bar-fill pre" style="width:' + Math.min(100, (pre[name] || 0) * 22) + '%"></div></div></div><div><small>课后 ' + (post[name] || 0) + '</small><div class="bar-track"><div class="bar-fill post" style="width:' + Math.min(100, (post[name] || 0) * 22) + '%"></div></div></div></div>').join("") : '<div class="auth-status">暂无课前/课后薄弱点数据</div>';
+    }
+
+    function updateTeachingAdvice(preRecords, postRecords, weakCounts) {
+      const preAvg = avgOf(preRecords);
+      const postAvg = avgOf(postRecords);
+      const delta = postRecords.length && preRecords.length ? postAvg - preAvg : 0;
+      const topWeak = Object.entries(weakCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(x => x[0]);
+      const trend = delta > 5 ? "课后测较课前测提升明显，可继续保持病例化练习。" : delta < -5 ? "课后测低于课前测，提示课堂后迁移应用仍不稳定。" : "课前课后差异不大，建议加强针对性讲评和二次练习。";
+      document.getElementById("teachingAdvice").innerHTML = '<b>教学建议：</b>' + esc(trend) + (topWeak.length ? ' 建议下一轮重点讲评：' + esc(topWeak.join("、")) + '。' : ' 暂无集中薄弱模块。');
+    }
+
     function renderTeacher() {
       const studentFilter = document.getElementById("filterStudent")?.value.trim() || "";
       const typeFilter = document.getElementById("filterType")?.value || "";
       const records = getRecords();
-      const filtered = records.filter(r => (!studentFilter || r.student.includes(studentFilter)) && (!typeFilter || r.type === typeFilter));
+      const filtered = records.filter(r => (!studentFilter || String(r.student || "").includes(studentFilter)) && (!typeFilter || r.type === typeFilter));
       const students = new Set(records.map(r => r.student));
       const avg = records.length ? Math.round(records.reduce((s, r) => s + Number(r.accuracy || 0), 0) / records.length) : 0;
-      const weakWords = filtered.flatMap(r => String(r.weak || "").split("、")).filter(x => x && x !== "暂无明显薄弱项");
-      const weakCounts = countItems(weakWords);
+      const weakCounts = countItems(filtered.flatMap(collectWeakLabels));
       const weakTop = Object.entries(weakCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(x => x[0]).join("、") || "暂无";
-      const difficultyCounts = countItems(filtered.map(r => r.train_difficulty || r.difficulty || (r.type === "训练" ? "未标注" : "测试")));
+      const preRecords = records.filter(r => r.type === "课前测试");
+      const postRecords = records.filter(r => r.type === "课后测试");
       document.getElementById("teacherStudents").textContent = students.size;
       document.getElementById("teacherSessions").textContent = records.length;
       document.getElementById("teacherAccuracy").textContent = avg + "%";
       document.getElementById("teacherWeak").textContent = weakTop;
       renderBarChart("weakChart", weakCounts, "暂无薄弱模块记录");
-      renderBarChart("difficultyChart", difficultyCounts, "暂无难度记录");
-      document.getElementById("recordTable").innerHTML = filtered.map(r => `<tr>
-        <td>${esc(r.time)}</td>
-        <td>${esc(r.student)}</td>
-        <td>${esc(r.type)}</td>
-        <td>${esc(r.caseId)}<br><span class="tag">${esc(r.source || "")}</span></td>
-        <td class="${Number(r.accuracy) >= 80 ? "ok-text" : "danger-text"}">${esc(r.accuracy)}%</td>
-        <td>${esc(r.weak)}</td>
-        <td>${esc(r.report_text || r.report?.weakPoints?.join("、") || "暂无报告").slice(0, 180)}</td>
-        <td><button class="secondary record-detail-btn" type="button" data-fid="${esc(r.fid || r.time)}">查看详情</button></td>
-      </tr>`).join("") || `<tr><td colspan="8">暂无记录</td></tr>`;
+      renderMasteryChart("preQuizChart", preRecords, "课前测");
+      renderMasteryChart("postQuizChart", postRecords, "课后测");
+      renderWeakCompare("quizWeakCompare", preRecords, postRecords);
+      updateTeachingAdvice(preRecords, postRecords, weakCounts);
+      document.getElementById("recordTable").innerHTML = filtered.map(r => {
+        const weakText = collectWeakLabels(r).slice(0, 4).join("、") || "暂无明显薄弱点";
+        const summary = r.report?.reportAbstract || r.report_text || r.report?.problemSummary || r.summary || "暂无报告";
+        return '<tr><td>' + esc(r.time) + '</td><td>' + esc(r.student) + '</td><td>' + esc(r.type) + '</td><td class="' + (Number(r.accuracy) >= 80 ? "ok-text" : "danger-text") + '">' + esc(r.accuracy) + '%</td><td>' + esc(weakText) + '</td><td>' + esc(summary).slice(0, 140) + '</td><td><button class="secondary record-detail-btn" type="button" data-fid="' + esc(r.fid || r.time) + '">查看详情</button></td></tr>';
+      }).join("") || '<tr><td colspan="7">暂无记录</td></tr>';
       document.querySelectorAll(".record-detail-btn").forEach(btn => {
         btn.addEventListener("click", () => openTeacherDetail(btn.dataset.fid));
       });
