@@ -3261,15 +3261,18 @@
     function getCloudConfig() {
       try {
         const cfg = JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY) || "{}");
-        const url = String(cfg.url || "").replace(/\/+$/, "");
+        const url = normalizeSupabaseUrl(cfg.url || "");
         const anonKey = String(cfg.anonKey || "");
         return url && anonKey ? { url, anonKey } : null;
       } catch (e) {
         return null;
       }
     }
+    function normalizeSupabaseUrl(url) {
+      return String(url || "").trim().replace(/\/rest\/v1\/?$/i, "").replace(/\/+$/, "");
+    }
     function setCloudConfig(url, anonKey) {
-      localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify({ url: String(url || "").replace(/\/+$/, ""), anonKey: String(anonKey || "") }));
+      localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify({ url: normalizeSupabaseUrl(url), anonKey: String(anonKey || "") }));
     }
     function cloudHeaders(cfg, prefer = "return=representation") {
       return {
