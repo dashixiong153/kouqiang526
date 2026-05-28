@@ -874,6 +874,26 @@
       color: var(--brand-deep);
     }
 
+    .answer-options {
+      margin: 8px 0 12px 22px;
+      padding-left: 14px;
+    }
+
+    .answer-options li {
+      margin: 5px 0;
+      line-height: 1.6;
+    }
+
+    .answer-options .correct-option {
+      color: var(--ok);
+      font-weight: 700;
+    }
+
+    .answer-options .picked-wrong {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
     .bar-row {
       display: grid;
       grid-template-columns: 110px minmax(0, 1fr) 42px;
@@ -4309,7 +4329,40 @@
       });
     }
 
-    function startQuiz(type) {
+    function shuffleItems(items) {
+      return [...items].sort(() => Math.random() - .5);
+    }
+
+    function optionLetter(index) {
+      return String.fromCharCode(65 + Number(index || 0));
+    }
+
+    function formatChoiceAnswer(options, index, fallback) {
+      const idx = Number(index);
+      return Number.isFinite(idx) && options?.[idx] ? optionLetter(idx) + ". " + options[idx] : fallback;
+    }
+
+    function weakFamily(label) {
+      if (/白斑/.test(label)) return "白斑";
+      if (/扁平苔藓|苔藓样/.test(label)) return "扁平苔藓";
+      if (/红斑狼疮/.test(label)) return "盘状红斑狼疮";
+      if (/黏膜下纤维|粘膜下纤维/.test(label)) return "口腔黏膜下纤维变性";
+      if (/潜在恶性|癌前|红斑/.test(label)) return "口腔潜在恶性疾患";
+      if (/斑纹类/.test(label)) return "斑纹类疾病";
+      return label || "";
+    }
+
+    function questionWeakLabel(q) {
+      return normalizeWeakLabel(q?.weak || q?.explanation || q?.q || "");
+    }
+
+    function questionMatchesFocus(q, focusLabels) {
+      const label = questionWeakLabel(q);
+      const family = weakFamily(label);
+      return focusLabels.some(item => item === label || weakFamily(item) === family);
+    }
+
+    function startQuiz(type, retryOptions = {}) {
       if (!state.studentLoggedIn) {
         document.getElementById("quizLoginNotice").textContent = "未登录：请先进入“学生训练”页输入学号并登录，然后再开始测试。";
         document.getElementById("quizLoginNotice").classList.add("danger-text");
@@ -4335,11 +4388,22 @@
       let pool = mode === "choice" ? choicePool
         : mode === "short" ? builtInShort
         : choicePool.concat(sourceMode === "uploaded" ? [] : builtInShort);
-      state.quiz = pool.sort(() => Math.random() - .5).slice(0, questionCount);
+      const focusLabels = (retryOptions.focusLabels || []).map(normalizeWeakLabel).filter(x => x && !/暂无明显|未标注|已过滤/.test(x));
+      if (focusLabels.length) {
+        const previousQuestions = new Set(retryOptions.previousQuestions || []);
+        const related = pool.filter(q => questionMatchesFocus(q, focusLabels));
+        const freshRelated = related.filter(q => !previousQuestions.has(q.q));
+        const repeatedRelated = related.filter(q => previousQuestions.has(q.q));
+        const others = pool.filter(q => !questionMatchesFocus(q, focusLabels));
+        pool = shuffleItems(freshRelated).concat(shuffleItems(repeatedRelated), shuffleItems(others));
+      } else {
+        pool = shuffleItems(pool);
+      }
+      state.quiz = pool.slice(0, questionCount);
       state.quizIndex = 0;
       state.quizAnswers = [];
       renderSurveyForm();
-      document.getElementById("quizProgress").textContent = type + "进行中";
+      document.getElementById("quizProgress").textContent = focusLabels.length ? type + " 薄弱点复练中" : type + "进行中";
       renderQuizQuestion();
     }
 
@@ -4412,8 +4476,9 @@
       if (q.type === "choice") {
         const picked = document.querySelector("input[name='choice']:checked");
         if (!picked) return alert("请选择一个选项");
-        answer = q.options[Number(picked.value)];
-        score = Number(picked.value) === q.answer ? 100 : 0;
+        const pickedIndex = Number(picked.value);
+        answer = q.options[pickedIndex];
+        score = pickedIndex === q.answer ? 100 : 0;
         feedback = score === 100 ? "正确" : "参考答案：" + q.options[q.answer];
       } else {
         answer = document.getElementById("shortAnswer").value.trim();
@@ -4421,7 +4486,20 @@
         score = keywordScore(answer, q.keys);
         feedback = "参考要点：" + q.ref;
       }
-      state.quizAnswers.push({ q: q.q, answer, score, feedback, weak: q.weak, source: q.source, type: q.type, correctAnswer: q.type === "choice" ? q.options[q.answer] : q.ref, explanation: q.explanation || q.ref || feedback });
+      state.quizAnswers.push({
+        q: q.q,
+        answer,
+        score,
+        feedback,
+        weak: q.weak,
+        source: q.source,
+        type: q.type,
+        options: q.type === "choice" ? [...q.options] : [],
+        selectedIndex: q.type === "choice" ? Number(document.querySelector("input[name='choice']:checked")?.value) : null,
+        correctIndex: q.type === "choice" ? q.answer : null,
+        correctAnswer: q.type === "choice" ? q.options[q.answer] : q.ref,
+        explanation: q.explanation || q.ref || feedback
+      });
       state.quizIndex += 1;
       renderQuizQuestion();
     }
@@ -4529,12 +4607,22 @@
         const ok = a.score >= 80;
         const explanation = a.explanation || a.feedback || "";
         const reviewText = explanation || ("知识点：" + (a.weak || "未标注"));
-        return '<div class="question-review ' + (ok ? "correct" : "wrong") + '"><b>第 ' + (i + 1) + ' 题：' + esc(ok ? "已掌握" : "需复盘") + '</b><p>' + esc(a.q) + '</p><p>你的答案：' + esc(a.answer) + '</p><p>参考答案：' + esc(a.correctAnswer || "见解析") + '</p><p>解析：' + esc(reviewText || "暂无解析") + '</p><p class="tag">来源：' + esc(a.source || "课程题库") + '</p></div>';
+        const optionsHtml = a.options?.length
+          ? '<ol class="answer-options" type="A">' + a.options.map((op, idx) => {
+              const cls = idx === a.correctIndex ? "correct-option" : idx === a.selectedIndex && idx !== a.correctIndex ? "picked-wrong" : "";
+              const note = idx === a.correctIndex ? "（正确答案）" : idx === a.selectedIndex ? "（你的选择）" : "";
+              return '<li class="' + cls + '">' + esc(op) + ' ' + note + '</li>';
+            }).join("") + '</ol>'
+          : "";
+        const studentAnswer = a.type === "choice" ? formatChoiceAnswer(a.options, a.selectedIndex, a.answer) : a.answer;
+        const correctAnswer = a.type === "choice" ? formatChoiceAnswer(a.options, a.correctIndex, a.correctAnswer) : a.correctAnswer;
+        return '<div class="question-review ' + (ok ? "correct" : "wrong") + '"><b>第 ' + (i + 1) + ' 题：' + esc(ok ? "已掌握" : "需复盘") + '</b><p>' + esc(a.q) + '</p>' + optionsHtml + '<p>你的答案：' + esc(studentAnswer) + '</p><p>参考答案：' + esc(correctAnswer || "见解析") + '</p><p>解析：' + esc(reviewText || "暂无解析") + '</p><p class="tag">来源：' + esc(a.source || "课程题库") + '</p></div>';
       }).join("");
       const surveyHtml = report.surveyAnswers?.filter(x => x.answer).length
         ? '<h4>问卷反馈</h4>' + report.surveyAnswers.filter(x => x.answer).map(x => '<p><b>' + esc(x.question) + '</b><br>' + esc(x.answer) + '</p>').join("")
         : "";
-      return '<div class="report-card learning-report"><h3>' + esc(report.title) + '</h3><div class="report-grid"><div class="report-metric">综合表现<b>' + esc(report.level) + '</b></div><div class="report-metric">本次得分<b>' + esc(report.score) + '%</b></div><div class="report-metric">答对题数<b>' + report.correct + ' / ' + report.total + '</b></div></div><h4>学情总结</h4><p>' + esc(report.problemSummary || "") + '</p><h4>薄弱知识点诊断</h4><table><thead><tr><th>知识点</th><th>失分</th><th>问题判断</th><th>学习建议</th></tr></thead><tbody>' + moduleHtml + '</tbody></table><h4>复盘路径</h4><ol>' + report.remediation.map(x => '<li>' + esc(x) + '</li>').join("") + '</ol><p>' + esc(report.surveyNote) + '</p>' + surveyHtml + '<details open><summary>逐题答案解析</summary>' + detailHtml + '</details></div>';
+      const retryText = (report.weakItems || []).some(x => !/暂无明显/.test(x)) ? "针对薄弱点再次随机出题" : "继续随机出题";
+      return '<div class="report-card learning-report"><h3>' + esc(report.title) + '</h3><div class="report-grid"><div class="report-metric">综合表现<b>' + esc(report.level) + '</b></div><div class="report-metric">本次得分<b>' + esc(report.score) + '%</b></div><div class="report-metric">答对题数<b>' + report.correct + ' / ' + report.total + '</b></div></div><h4>学情总结</h4><p>' + esc(report.problemSummary || "") + '</p><h4>薄弱知识点诊断</h4><table><thead><tr><th>知识点</th><th>失分</th><th>问题判断</th><th>学习建议</th></tr></thead><tbody>' + moduleHtml + '</tbody></table><h4>复盘路径</h4><ol>' + report.remediation.map(x => '<li>' + esc(x) + '</li>').join("") + '</ol><div class="actions"><button class="btn" type="button" id="retryWeakQuizBtn">' + retryText + '</button></div><p>' + esc(report.surveyNote) + '</p>' + surveyHtml + '<details open><summary>逐题答案解析</summary>' + detailHtml + '</details></div>';
     }
 
     function finishQuiz() {
@@ -4571,6 +4659,12 @@
       });
       setRecords(records);
       box.innerHTML = renderLearningReport(report);
+      document.getElementById("retryWeakQuizBtn")?.addEventListener("click", () => {
+        startQuiz(type, {
+          focusLabels: report.weakItems || [],
+          previousQuestions: report.answerDetails.map(a => a.q)
+        });
+      });
       document.getElementById("quizProgress").textContent = "已完成";
       refreshMetrics();
       renderTeacher();
