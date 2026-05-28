@@ -149,6 +149,10 @@
       align-items: start;
     }
 
+    .grid.two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .panel {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -1136,6 +1140,25 @@
           </div>
           <div class="panel-body stack">
             <div class="notice">课前测试和课后测试分别配置题库、问卷、出题范围、题目数量和题型。学生端只显示“开始测试”，并按对应测试类型读取这里的配置。</div>
+            <div class="quiz-type-card">
+              <b>云端数据库同步（Supabase）</b>
+              <div class="grid two">
+                <label>Supabase Project URL
+                  <input id="cloudSupabaseUrl" placeholder="https://xxxx.supabase.co" />
+                </label>
+                <label>Supabase anon key
+                  <input id="cloudSupabaseAnonKey" type="password" placeholder="公开 anon key，不填写 service_role" />
+                </label>
+              </div>
+              <div class="actions">
+                <button class="btn" id="saveCloudConfigBtn" type="button">保存并测试云端连接</button>
+                <button class="btn secondary" id="syncCloudConfigBtn" type="button">同步当前题库到云端</button>
+              </div>
+              <div class="auth-status" id="cloudSyncStatus">未配置云端数据库：当前题库和作答记录只保存在本机浏览器。</div>
+              <label>学生同步链接
+                <textarea class="answer-box" id="cloudStudentLink" readonly placeholder="保存云端配置后生成，学生使用该链接打开即可读取教师云端题库。"></textarea>
+              </label>
+            </div>
             <div class="quiz-type-grid">
               <div class="quiz-type-card">
                 <b>课前测试配置</b>
@@ -3168,6 +3191,7 @@
     };
 
     const QUIZ_CONFIG_KEY = "kouqiang526_teacher_quiz_configs";
+    const CLOUD_CONFIG_KEY = "mucosa_cloud_supabase_config";
 
     const chat = document.getElementById("chat");
     const input = document.getElementById("studentInput");
@@ -3225,6 +3249,159 @@
       const tx = appDb.transaction("records", "readwrite");
       const store = tx.objectStore("records");
       records.forEach(record => store.put(record));
+    }
+    function applyCloudConfigFromUrl() {
+      const params = new URLSearchParams(location.search);
+      const url = params.get("sb_url") || params.get("supabase_url");
+      const anonKey = params.get("sb_key") || params.get("supabase_key");
+      if (url && anonKey) {
+        localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify({ url, anonKey }));
+      }
+    }
+    function getCloudConfig() {
+      try {
+        const cfg = JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY) || "{}");
+        const url = String(cfg.url || "").replace(/\/+$/, "");
+        const anonKey = String(cfg.anonKey || "");
+        return url && anonKey ? { url, anonKey } : null;
+      } catch (e) {
+        return null;
+      }
+    }
+    function setCloudConfig(url, anonKey) {
+      localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify({ url: String(url || "").replace(/\/+$/, ""), anonKey: String(anonKey || "") }));
+    }
+    function cloudHeaders(cfg, prefer = "return=representation") {
+      return {
+        apikey: cfg.anonKey,
+        Authorization: "Bearer " + cfg.anonKey,
+        "Content-Type": "application/json",
+        Prefer: prefer
+      };
+    }
+    async function cloudRequest(path, options = {}) {
+      const cfg = getCloudConfig();
+      if (!cfg) throw new Error("未配置 Supabase URL 和 anon key");
+      const response = await fetch(cfg.url + "/rest/v1/" + path, {
+        method: options.method || "GET",
+        headers: cloudHeaders(cfg, options.prefer || "return=representation"),
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+      const text = await response.text();
+      if (!response.ok) throw new Error(text || ("云端请求失败：" + response.status));
+      return text ? JSON.parse(text) : null;
+    }
+    function cloudType(type) {
+      return encodeURIComponent(type);
+    }
+    function cloudStatus(text, danger = false) {
+      const el = document.getElementById("cloudSyncStatus");
+      if (!el) return;
+      el.textContent = text;
+      el.classList.toggle("danger-text", danger);
+    }
+    function updateCloudConfigControls() {
+      const cfg = getCloudConfig();
+      const urlInput = document.getElementById("cloudSupabaseUrl");
+      const keyInput = document.getElementById("cloudSupabaseAnonKey");
+      const linkBox = document.getElementById("cloudStudentLink");
+      if (urlInput && cfg) urlInput.value = cfg.url;
+      if (keyInput && cfg) keyInput.value = cfg.anonKey;
+      if (linkBox && cfg) {
+        const url = new URL(location.href);
+        url.searchParams.set("sb_url", cfg.url);
+        url.searchParams.set("sb_key", cfg.anonKey);
+        linkBox.value = url.toString();
+      }
+      cloudStatus(cfg ? "已配置云端数据库：学生使用下方同步链接即可读取教师上传题库，作答记录会写入云端。" : "未配置云端数据库：当前题库和作答记录只保存在本机浏览器。");
+    }
+    function normalizeCloudConfigRow(row) {
+      return {
+        sourceMode: row.source_mode || "builtin",
+        questionCount: Number(row.question_count || 5),
+        mode: row.mode || "mixed",
+        customQuestions: Array.isArray(row.custom_questions) ? row.custom_questions : [],
+        customSurvey: Array.isArray(row.custom_survey) ? row.custom_survey : []
+      };
+    }
+    async function saveQuizConfigToCloud(type) {
+      if (!getCloudConfig()) return false;
+      const cfg = getQuizConfig(type);
+      await cloudRequest("quiz_configs?on_conflict=type", {
+        method: "POST",
+        body: [{
+          type,
+          source_mode: cfg.sourceMode,
+          question_count: Number(cfg.questionCount || 5),
+          mode: cfg.mode || "mixed",
+          custom_questions: cfg.customQuestions || [],
+          custom_survey: cfg.customSurvey || [],
+          updated_at: new Date().toISOString()
+        }],
+        prefer: "resolution=merge-duplicates,return=representation"
+      });
+      return true;
+    }
+    async function saveAllQuizConfigsToCloud() {
+      if (!getCloudConfig()) return false;
+      await saveQuizConfigToCloud("课前测试");
+      await saveQuizConfigToCloud("课后测试");
+      return true;
+    }
+    async function loadQuizConfigFromCloud(type) {
+      if (!getCloudConfig()) return false;
+      const rows = await cloudRequest("quiz_configs?type=eq." + cloudType(type) + "&select=*", { prefer: "return=minimal" });
+      if (!rows || !rows.length) return false;
+      state.quizConfigs[type] = { ...defaultQuizConfig(), ...normalizeCloudConfigRow(rows[0]) };
+      localStorage.setItem(QUIZ_CONFIG_KEY, JSON.stringify(state.quizConfigs));
+      updateQuizConfigControls("课前测试", "pre");
+      updateQuizConfigControls("课后测试", "post");
+      updateQuizConfigStatus();
+      return true;
+    }
+    async function loadAllQuizConfigsFromCloud() {
+      if (!getCloudConfig()) return false;
+      await Promise.all(["课前测试", "课后测试"].map(type => loadQuizConfigFromCloud(type).catch(() => false)));
+      setQuizPage(state.activeQuizType || "课前测试");
+      return true;
+    }
+    async function saveRecordToCloud(record) {
+      if (!getCloudConfig() || !record?.fid) return false;
+      await cloudRequest("student_records?on_conflict=fid", {
+        method: "POST",
+        body: [{
+          fid: String(record.fid),
+          student_id: String(record.student || record.studentId || ""),
+          record_type: String(record.type || ""),
+          payload: record,
+          created_at: new Date().toISOString()
+        }],
+        prefer: "resolution=merge-duplicates,return=minimal"
+      });
+      return true;
+    }
+    async function loadRecordsFromCloud() {
+      if (!getCloudConfig()) return false;
+      const rows = await cloudRequest("student_records?select=payload&order=created_at.desc&limit=500", { prefer: "return=minimal" });
+      const cloudRecords = (rows || []).map(row => row.payload).filter(Boolean);
+      if (!cloudRecords.length) return false;
+      const merged = [...cloudRecords, ...getRecords()];
+      const seen = new Set();
+      const unique = merged.filter(record => {
+        const key = String(record.fid || record.time || Math.random());
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      localStorage.setItem(storeKey(), JSON.stringify(unique));
+      saveRecordsToDb(unique);
+      refreshMetrics();
+      renderTeacher();
+      return true;
+    }
+    async function testCloudConnection() {
+      await cloudRequest("quiz_configs?select=type&limit=1", { prefer: "return=minimal" });
+      return true;
     }
     function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
     function esc(text) {
@@ -3464,7 +3641,12 @@
     function updateTeacherGate() {
       document.getElementById("teacherLoginPanel").classList.toggle("hidden", state.teacherLoggedIn);
       document.getElementById("teacherContent").classList.toggle("hidden", !state.teacherLoggedIn);
-      if (state.teacherLoggedIn) renderTeacher();
+      if (state.teacherLoggedIn) {
+        updateCloudConfigControls();
+        loadAllQuizConfigsFromCloud().catch(() => {});
+        loadRecordsFromCloud().catch(() => {});
+        renderTeacher();
+      }
     }
 
     function initialGreeting() {
@@ -3931,6 +4113,7 @@
         kg_nodes: steps.slice(0, state.step + 1)
       });
       setRecords(records);
+      saveRecordToCloud(records[0]).catch(err => console.warn("cloud record sync failed", err));
       refreshMetrics();
       renderTeacher();
       return { accuracy: acc, nextDifficulty: nextDifficultyAfter(c.difficulty || "初级", acc >= 80) };
@@ -4076,6 +4259,9 @@
         };
       });
       localStorage.setItem(QUIZ_CONFIG_KEY, JSON.stringify(state.quizConfigs));
+      saveAllQuizConfigsToCloud()
+        .then(ok => { if (ok) cloudStatus("已将当前课前/课后测试配置同步到云端。"); })
+        .catch(err => cloudStatus("云端同步失败：" + (err.message || err), true));
       setQuizPage(state.activeQuizType || "课前测试");
     }
 
@@ -4419,6 +4605,9 @@
         updateQuizConfigStatus();
         setQuizPage(type);
         if (status) status.textContent = "解析成功：" + (kind === "survey" ? "问卷 " : "题目 ") + items.length + (kind === "survey" ? " 项" : " 道") + "，已绑定到" + type + "。";
+        saveQuizConfigToCloud(type)
+          .then(ok => { if (ok && status) status.textContent += " 已同步到云端。"; })
+          .catch(err => { if (status) status.textContent += " 云端同步失败：" + (err.message || err); });
       } catch (err) {
         if (status) status.textContent = "解析失败：" + (err.message || err) + " 请确认文件中包含题干、A-D/E 选项、正确答案；旧版 .doc/.ppt 若仍无法识别，请另存为 .docx/.pptx、Excel、CSV 或 TXT 后上传。";
       }
@@ -4475,13 +4664,22 @@
       return focusLabels.some(item => item === label || weakFamily(item) === family);
     }
 
-    function startQuiz(type, retryOptions = {}) {
+    async function startQuiz(type, retryOptions = {}) {
       if (!state.studentLoggedIn) {
         document.getElementById("quizLoginNotice").textContent = "未登录：请先进入“学生训练”页输入学号并登录，然后再开始测试。";
         document.getElementById("quizLoginNotice").classList.add("danger-text");
         return;
       }
       state.activeQuizType = type;
+      if (getCloudConfig()) {
+        document.getElementById("quizProgress").textContent = "正在读取云端题库...";
+        try {
+          await loadQuizConfigFromCloud(type);
+        } catch (err) {
+          document.getElementById("quizLoginNotice").textContent = "云端题库读取失败，将使用本机缓存配置：" + (err.message || err);
+          document.getElementById("quizLoginNotice").classList.add("danger-text");
+        }
+      }
       const cfg = getQuizConfig(type);
       const mode = cfg.mode || "mixed";
       const sourceMode = cfg.sourceMode || "builtin";
@@ -4774,6 +4972,7 @@
         school: "口腔黏膜病学教学平台"
       });
       setRecords(records);
+      saveRecordToCloud(records[0]).catch(err => console.warn("cloud record sync failed", err));
       box.innerHTML = renderLearningReport(report);
       document.getElementById("retryWeakQuizBtn")?.addEventListener("click", () => {
         startQuiz(type, {
@@ -5058,6 +5257,34 @@
     document.getElementById("preSurveyUpload").addEventListener("change", e => handleQuestionUpload(e.target.files[0], "survey", "课前测试"));
     document.getElementById("postCustomQuestionUpload").addEventListener("change", e => handleQuestionUpload(e.target.files[0], "question", "课后测试"));
     document.getElementById("postSurveyUpload").addEventListener("change", e => handleQuestionUpload(e.target.files[0], "survey", "课后测试"));
+    document.getElementById("saveCloudConfigBtn").addEventListener("click", async () => {
+      const url = document.getElementById("cloudSupabaseUrl").value.trim();
+      const anonKey = document.getElementById("cloudSupabaseAnonKey").value.trim();
+      if (!url || !anonKey) {
+        cloudStatus("请填写 Supabase Project URL 和 anon key。", true);
+        return;
+      }
+      setCloudConfig(url, anonKey);
+      updateCloudConfigControls();
+      cloudStatus("正在测试云端连接...");
+      try {
+        await testCloudConnection();
+        await saveAllQuizConfigsToCloud();
+        await loadRecordsFromCloud().catch(() => false);
+        cloudStatus("云端连接成功，当前课前/课后题库配置已同步。学生请使用下方同步链接进入。");
+      } catch (err) {
+        cloudStatus("云端连接失败：" + (err.message || err) + "。请检查 URL、anon key 和数据库表/权限。", true);
+      }
+    });
+    document.getElementById("syncCloudConfigBtn").addEventListener("click", async () => {
+      cloudStatus("正在同步题库到云端...");
+      try {
+        await saveAllQuizConfigsToCloud();
+        cloudStatus("已同步当前课前/课后题库、问卷和测试配置到云端。");
+      } catch (err) {
+        cloudStatus("云端同步失败：" + (err.message || err), true);
+      }
+    });
     ["preQuizSourceMode", "preQuizQuestionCount", "preQuizMode", "postQuizSourceMode", "postQuizQuestionCount", "postQuizMode"].forEach(id => {
       document.getElementById(id).addEventListener("change", () => {
         saveQuizConfig();
@@ -5094,7 +5321,10 @@
       });
     });
 
+    applyCloudConfigFromUrl();
     loadQuizConfig();
+    updateCloudConfigControls();
+    loadAllQuizConfigsFromCloud().catch(err => cloudStatus("云端题库读取失败：" + (err.message || err), true));
     restoreStudentLogin();
     openAppDb().then(() => {
       saveRecordsToDb(getRecords());
