@@ -4005,6 +4005,11 @@
           explanation: compact[8]
         };
       }
+      if (item.type === "choice" && item.normalized === true) return item;
+      if (item.type === "choice" && Array.isArray(item.options) && Number.isFinite(Number(item.answer))) {
+        const answer = Number(item.answer);
+        return answer >= 0 && answer < item.options.length ? { ...item, answer, normalized: true } : null;
+      }
       const q = String(item.q || item.question || item.title || item["题干"] || item["问题"] || "").trim();
       const options = Array.isArray(item.options)
         ? item.options.map(x => String(x || "").trim()).filter(Boolean)
@@ -4018,6 +4023,7 @@
         q,
         options,
         answer,
+        normalized: true,
         source: item.source || item["来源"] || "教师上传题库",
         weak: rawWeak && rawWeak !== "教师上传题目" ? rawWeak : (inferUploadedWeak(q) || "教师上传题目"),
         explanation: item.explanation || item.analysis || item["答案解析"] || item["解析"] || buildInferredExplanation(q, options, answer),
