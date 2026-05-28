@@ -3981,7 +3981,19 @@
 
     function normalizeQuizQuestion(item) {
       if (!item) return null;
-      if (item.type === "short") return item.q ? item : null;
+      if (item.type === "short") {
+        const q = String(item.q || item.question || item.title || item["题干"] || item["问题"] || "").trim();
+        const ref = String(item.ref || item.answer || item.correctAnswer || item["参考答案"] || item["答案"] || "").trim();
+        if (!q || !ref) return null;
+        return {
+          q,
+          ref,
+          keys: item.keys || ref.split(/[，,、；;。\s]/).filter(x => x.length >= 2).slice(0, 8),
+          source: item.source || item["来源"] || "教师上传题库",
+          weak: item.weak || item["知识点"] || item["薄弱模块"] || "教师上传题目",
+          type: "short"
+        };
+      }
       if (Array.isArray(item)) {
         const compact = item.map(x => String(x || "").trim());
         const answerCell = compact.length >= 7 ? compact[6] : compact[5];
@@ -4114,8 +4126,23 @@
       return Number.isFinite(num) ? (num >= 1 ? num - 1 : num) : Number.NaN;
     }
 
+    function normalizeOfficeText(text) {
+      return String(text || "")
+        .replace(/\u0000/g, "")
+        .replace(/[ \t]+/g, " ")
+        .replace(/([。；;])\s*(?=\d+[.、]\s*)/g, "$1\n")
+        .replace(/\s+(?=([A-E])[.、:：]\s*)/g, "\n")
+        .replace(/\s+(?=(?:答案|正确答案|参考答案|解析|答案解析|知识点|来源)[:：])/g, "\n")
+        .replace(/(^|\s)([A-E])[.、:：]\s*/gm, "\n$2. ")
+        .replace(/(?:答案|正确答案|参考答案)[:：]\s*/g, "\n答案：")
+        .replace(/(?:解析|答案解析)[:：]\s*/g, "\n解析：")
+        .replace(/知识点[:：]\s*/g, "\n知识点：")
+        .replace(/来源[:：]\s*/g, "\n来源：")
+        .replace(/\n{3,}/g, "\n\n");
+    }
+
     function parseUploadedQuestions(text, kind) {
-      const trimmed = text.trim();
+      const trimmed = normalizeOfficeText(text).trim();
       if (!trimmed) return [];
       try {
         const parsed = JSON.parse(trimmed);
@@ -4167,13 +4194,19 @@
         const opMatch = line.match(/^([A-E])[.、:：]\s*(.+)$/i);
         const ansMatch = line.match(/^(?:答案|正确答案|参考答案)[:：]\s*(.+)$/);
         const expMatch = line.match(/^(?:解析|答案解析)[:：]\s*(.+)$/);
+        const weakMatch = line.match(/^知识点[:：]\s*(.+)$/);
+        const sourceMatch = line.match(/^来源[:：]\s*(.+)$/);
         if (opMatch && current) {
           current.options[opMatch[1].toUpperCase().charCodeAt(0) - 65] = opMatch[2].trim();
         } else if (ansMatch && current) {
           current.answer = ansMatch[1].trim();
         } else if (expMatch && current) {
           current.explanation = [current.explanation, expMatch[1].trim()].filter(Boolean).join("\n");
-        } else if (!/^(?:知识点|来源)[:：]/.test(line)) {
+        } else if (weakMatch && current) {
+          current.weak = weakMatch[1].trim();
+        } else if (sourceMatch && current) {
+          current.source = sourceMatch[1].trim();
+        } else {
           if (current && current.options.length) flush();
           current = { q: qMatch?.[1] || line, options: [], answer: "", weak: "教师上传题目", explanation: "", source: "教师上传题库" };
         }
@@ -4196,11 +4229,24 @@
         return rowsToUploadedItems(rows, kind);
       }
       if (ext === "docx") {
-        await ensureOfficeParser("mammoth", "https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js");
-        const buffer = await file.arrayBuffer();
-        if (!window.mammoth) throw new Error("Word 解析库加载失败，请检查网络后重试，或另存为 TXT/CSV 上传。");
-        const result = await window.mammoth.extractRawText({ arrayBuffer: buffer });
-        return parseUploadedQuestions(result.value || "", kind);
+        let text = "";
+        try {
+          await ensureOfficeParser("mammoth", "https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js");
+          const buffer = await file.arrayBuffer();
+          if (window.mammoth) {
+            const result = await window.mammoth.extractRawText({ arrayBuffer: buffer });
+            text = result.value || "";
+          }
+        } catch (e) {}
+        if (!text.trim()) {
+          await ensureOfficeParser("JSZip", "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js");
+          text = await extractDocxText(file);
+        }
+        return parseUploadedQuestions(text, kind);
+      }
+      if (ext === "doc" || ext === "ppt") {
+        const text = await readLegacyOfficeText(file);
+        return parseUploadedQuestions(text, kind);
       }
       if (ext === "pptx") {
         await ensureOfficeParser("JSZip", "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js");
@@ -4266,6 +4312,15 @@
       }).filter(Boolean);
     }
 
+    async function extractDocxText(file) {
+      if (!window.JSZip) throw new Error("Word 解析库加载失败，请检查网络后重试，或另存为 TXT/CSV 上传。");
+      const zip = await window.JSZip.loadAsync(await file.arrayBuffer());
+      const entry = zip.files["word/document.xml"];
+      if (!entry) return "";
+      const xml = await entry.async("text");
+      return decodeXml(xml.replace(/<w:tab\/>/g, " ").replace(/<\/w:p>/g, "\n").replace(/<[^>]+>/g, ""));
+    }
+
     async function extractPptxText(file) {
       if (!window.JSZip) throw new Error("PPT 解析库加载失败，请检查网络后重试，或另存为 TXT/CSV 上传。");
       const zip = await window.JSZip.loadAsync(await file.arrayBuffer());
@@ -4276,6 +4331,15 @@
         [...xml.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)].forEach(match => texts.push(decodeXml(match[1])));
       }
       return texts.join("\n");
+    }
+
+    async function readLegacyOfficeText(file) {
+      const buffer = await file.arrayBuffer();
+      const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+      const utf16 = new TextDecoder("utf-16le", { fatal: false }).decode(buffer);
+      return normalizeOfficeText((utf8 + "\n" + utf16)
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]+/g, " ")
+        .replace(/[^\S\r\n]{2,}/g, " "));
     }
 
     function decodeXml(text) {
@@ -4305,9 +4369,10 @@
         state.quizConfigs[type] = cfg;
         localStorage.setItem(QUIZ_CONFIG_KEY, JSON.stringify(state.quizConfigs));
         updateQuizConfigStatus();
-        setQuizPage(state.activeQuizType || type);
+        setQuizPage(type);
+        if (status) status.textContent = "解析成功：" + (kind === "survey" ? "问卷 " : "题目 ") + items.length + (kind === "survey" ? " 项" : " 道") + "，已绑定到" + type + "。";
       } catch (err) {
-        if (status) status.textContent = "解析失败：" + (err.message || err) + " 旧版 .doc/.ppt 如无法解析，请另存为 .docx/.pptx、Excel、CSV 或 TXT 后上传。";
+        if (status) status.textContent = "解析失败：" + (err.message || err) + " 请确认文件中包含题干、A-D/E 选项、正确答案；旧版 .doc/.ppt 若仍无法识别，请另存为 .docx/.pptx、Excel、CSV 或 TXT 后上传。";
       }
     }
 
@@ -4375,19 +4440,22 @@
       const questionCount = Math.max(1, Math.min(50, Number(cfg.questionCount || 5)));
       state.customQuestions = cfg.customQuestions || [];
       state.customSurvey = cfg.customSurvey || [];
-      const uploadedChoices = state.customQuestions.map(normalizeQuizQuestion).filter(Boolean);
+      const uploadedItems = state.customQuestions.map(normalizeQuizQuestion).filter(Boolean);
+      const uploadedChoices = uploadedItems.filter(item => item.type === "choice");
+      const uploadedShort = uploadedItems.filter(item => item.type === "short");
       const builtInChoices = choiceBank.map(x => ({ ...x, type: "choice" }));
       const builtInShort = shortBank.map(x => ({ ...x, type: "short" }));
       let choicePool = sourceMode === "uploaded" ? uploadedChoices.map(x => ({ ...x, type: "choice" }))
         : sourceMode === "mixed" ? builtInChoices.concat(uploadedChoices.map(x => ({ ...x, type: "choice" })))
         : builtInChoices;
-      if (sourceMode === "uploaded" && !choicePool.length) {
-        alert("请先上传题目，或将出题范围切换为课程题库。");
+      const shortPool = sourceMode === "uploaded" ? uploadedShort : builtInShort;
+      let pool = mode === "choice" ? choicePool
+        : mode === "short" ? shortPool
+        : choicePool.concat(sourceMode === "uploaded" ? uploadedShort : builtInShort);
+      if (sourceMode === "uploaded" && !pool.length) {
+        alert("当前设置为“仅教师上传题目”，但未识别到与所选题型匹配的教师上传题目。请检查上传文件、题型设置，或切换为“课程题库 + 教师上传题目”。");
         return;
       }
-      let pool = mode === "choice" ? choicePool
-        : mode === "short" ? builtInShort
-        : choicePool.concat(sourceMode === "uploaded" ? [] : builtInShort);
       const focusLabels = (retryOptions.focusLabels || []).map(normalizeWeakLabel).filter(x => x && !/暂无明显|未标注|已过滤/.test(x));
       if (focusLabels.length) {
         const previousQuestions = new Set(retryOptions.previousQuestions || []);
