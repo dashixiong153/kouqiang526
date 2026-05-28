@@ -3914,7 +3914,11 @@
       const missing = rules.checks.filter(item => !hit.includes(item)).map(item => item.name);
       const severeIssues = detectSevereTrainingIssues(raw, step);
       const minorIssues = detectMinorTrainingIssues(raw, step);
-      let score = Math.round((hit.length / Math.max(rules.checks.length, 1)) * 72 + Math.min(clean.length / Math.max(rules.minLen, 1), 1) * 18 + 10);
+      const qualityIssue = detectNonAnswerIssue(raw, step, hit.length, rules.requiredHits);
+      if (qualityIssue) severeIssues.push(qualityIssue);
+      const hitRatio = hit.length / Math.max(rules.checks.length, 1);
+      const lengthCredit = hit.length ? Math.min(clean.length / Math.max(rules.minLen, 1), 1) * 8 : 0;
+      let score = Math.round(hitRatio * 82 + lengthCredit + (hit.length >= rules.requiredHits ? 10 : 0));
 
       if (step === 5 && c.diagnosis) {
         const diagnosisMatched = diagnosisMatches(clean, c.diagnosis);
@@ -3925,16 +3929,34 @@
       }
       if (severeIssues.length) score = Math.min(score - severeIssues.length * 12, 55);
       if (minorIssues.length) score = Math.min(score - minorIssues.length * 6, 82);
-      if (missing.length) score = Math.min(score, Math.max(45, 100 - missing.length * 12));
+      if (missing.length) score = Math.min(score, Math.max(30, 100 - missing.length * 14));
       if (hit.length < rules.requiredHits) score = Math.min(score, 68);
       if (clean.length < rules.minLen) score = Math.min(score, 55);
+      if (hit.length === 0) score = Math.min(score, clean.length ? 15 : 0);
+      if (qualityIssue) score = Math.min(score, 15);
       score = Math.max(0, Math.min(100, Math.round(score)));
 
-      const enough = score >= rules.passScore && severeIssues.length === 0 && hit.length >= rules.requiredHits && clean.length >= rules.minLen;
+      const enough = score >= rules.passScore && !qualityIssue && severeIssues.length === 0 && hit.length >= rules.requiredHits && clean.length >= rules.minLen;
       const strengths = hit.map(item => item.name);
       const issues = severeIssues.concat(minorIssues, missing.map(item => "缺少：" + item));
       const suggestion = buildStepSuggestion(step, missing, severeIssues, minorIssues);
       return { enough, score, missing, strengths, issues, suggestion, passScore: rules.passScore };
+    }
+
+    function detectNonAnswerIssue(text, step, hitCount = 0, requiredHits = 2) {
+      const clean = String(text || "").replace(/\s+/g, "");
+      if (!clean) return "未提交有效作答内容";
+      const clinicalTerms = /主诉|症状|部位|时间|疼痛|糜烂|白斑|白纹|红斑|病损|病史|检查|诊断|鉴别|治疗|随访|预后|活检|病理|口腔|黏膜|舌|颊|唇|牙龈/;
+      const metaTalk = /这道题|这个题|题目|答案|解析|怎么|为什么|我觉得|你应该|我要|我还没|没说完|全部写下来|废话|随便|不会|不知道|不清楚|没看懂|不想答|帮我答/;
+      const fillerOnly = /^(好的|嗯|啊|不知道|不会|不清楚|随便|没有|这是我的答案|这题不会|这道题我不会|这道题的解法是这样的)[。.!！?？]*$/;
+      if (fillerOnly.test(clean)) return "未围绕当前训练任务作答";
+      if (metaTalk.test(clean) && (hitCount < requiredHits || !clinicalTerms.test(clean))) {
+        return "回答属于题目评论、抱怨或未作答内容，缺少临床分析";
+      }
+      if (step === 0 && hitCount < 2 && !/核心|症状|部位|时间|主诉|规范/.test(clean)) {
+        return "未按主诉解析任务回答";
+      }
+      return "";
     }
 
     function getStepAssessmentRules(step, c = {}) {
