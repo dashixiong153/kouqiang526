@@ -3684,15 +3684,15 @@
       recognition = new SpeechRecognition();
       recognition.lang = "zh-CN";
       recognition.interimResults = true;
-      recognition.continuous = true;
+      recognition.continuous = false;
       recognition.maxAlternatives = 1;
       recognition.onstart = () => {
         state.recognizing = true;
         state.voiceHadResult = false;
         voiceInputBtn.classList.add("active");
         voiceConfirmBtn.disabled = false;
-        setVoiceStatus("正在持续聆听，完成后请点“确认发送”", "listening");
-        setVoiceTranscript(state.voiceDraftText || "正在聆听中……系统会持续记录语音，完成后请点击“确认发送”。", true);
+        setVoiceStatus("正在分段聆听，停顿后会自动转写并继续听", "listening");
+        setVoiceTranscript(state.voiceDraftText || "正在聆听中……每次自然停顿后会先转成文字，完成后请点击“确认发送”。", true);
       };
       recognition.onresult = event => {
         let finalText = "";
@@ -3726,11 +3726,12 @@
         voiceInputBtn.classList.remove("active");
         avatarWrap.classList.remove("listening");
         if (state.voiceSessionActive) {
-          setVoiceStatus("语音引擎短暂停顿，正在继续聆听", "listening");
+          setVoiceStatus(state.voiceDraftText ? "已转写当前片段，正在继续聆听" : "语音引擎短暂停顿，正在继续聆听", "listening");
           window.clearTimeout(voiceRestartTimer);
           voiceRestartTimer = window.setTimeout(() => {
+            if (!state.voiceSessionActive) return;
             try { recognition.start(); } catch (e) { setVoiceStatus("语音输入正在恢复，请稍后继续说"); }
-          }, 240);
+          }, 420);
           return;
         }
         if (!state.voiceHadResult && !state.lastVoiceText) {
@@ -5388,7 +5389,7 @@
         return;
       }
       if (state.recognizing) {
-        setVoiceStatus("正在持续聆听，完成后请点“确认发送”", "listening");
+        setVoiceStatus("正在分段聆听，完成后请点“确认发送”", "listening");
         return;
       }
       try {
