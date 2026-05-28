@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>广西医科大学口腔医学院临床案例思维训练 AI 助手</title>
+  <title>口腔黏膜病学—“黏膜研思”智能体平台</title>
   <style>
     :root {
       --ink: #18232f;
@@ -941,7 +941,7 @@
   <div class="app">
     <aside>
       <div class="brand-block">
-        <h1>广西医科大学口腔医学院</h1>
+        <h1>口腔黏膜病学—“黏膜研思”智能体平台</h1>
         <p>口腔临床案例思维训练专业 AI 网页助手</p>
       </div>
       <nav class="nav" aria-label="主导航">
@@ -1299,7 +1299,7 @@
 
     const kbCases = [
       {
-        id: "GXMU-KQ-KB-LP-001",
+        id: "KB-OLP-001",
         source: "口腔医学知识库病例",
         category: "口腔黏膜病学",
         name: "双颊糜烂型口腔扁平苔藓",
@@ -1315,7 +1315,7 @@
         followImages: ["image10.jpeg","image11.jpeg","image12.jpeg","image13.jpeg","image14.jpeg","image15.jpeg"].map(n => "assets/kb/lichen_planus/" + n)
       },
       {
-        id: "GXMU-KQ-KB-LP-002",
+        id: "KB-OLP-002",
         source: "口腔医学知识库病例",
         category: "口腔黏膜病学",
         name: "口腔疼痛伴黏膜糜烂",
@@ -1331,7 +1331,7 @@
         followImages: []
       },
       {
-        id: "GXMU-KQ-KB-LP-003",
+        id: "KB-OLP-003",
         source: "口腔医学知识库病例",
         category: "口腔黏膜病学",
         name: "颊侧白纹非糜烂型病例",
@@ -1347,7 +1347,7 @@
         followImages: []
       },
       {
-        id: "GXMU-KQ-KB-LP-005",
+        id: "KB-OLP-005",
         source: "口腔医学知识库病例",
         category: "口腔黏膜病学",
         name: "双颊及舌部白色病损伴疼痛",
@@ -1364,7 +1364,7 @@
         followImages: []
       },
       {
-        id: "GXMU-KQ-KB-LD-002",
+        id: "KB-LD-002",
         source: "口腔医学知识库病例",
         category: "口腔黏膜病学",
         name: "左颊黏膜反复疼痛苔藓样损害",
@@ -1380,7 +1380,7 @@
         followImages: []
       },
       {
-        id: "GXMU-KQ-KB-LD-003",
+        id: "KB-LD-003",
         source: "口腔医学知识库病例",
         category: "口腔黏膜病学",
         name: "舌部糜烂疼痛苔藓样损害",
@@ -3182,7 +3182,7 @@
     let recognition = null;
     let uploadedImageUrls = [];
 
-    function storeKey() { return "gxmu_kq_ai_records_v1"; }
+    function storeKey() { return "mucosa_ai_records_v1"; }
     function getRecords() { return JSON.parse(localStorage.getItem(storeKey()) || "[]"); }
     function setRecords(records) {
       localStorage.setItem(storeKey(), JSON.stringify(records));
@@ -3214,7 +3214,7 @@
     function saveStudentToDb(studentId) {
       putDb("students", {
         studentId,
-        school: "广西医科大学口腔学院",
+        school: "口腔黏膜病学教学平台",
         consent: true,
         consentText: "学号仅用于课程训练记录、测试统计和教师学习反馈",
         updatedAt: new Date().toISOString()
@@ -3430,7 +3430,7 @@
     function setStudentLogin(studentId) {
       state.studentId = studentId;
       state.studentLoggedIn = true;
-      localStorage.setItem("gxmu_kq_student_id", studentId);
+      localStorage.setItem("mucosa_student_id", studentId);
       saveStudentToDb(studentId);
       document.getElementById("studentAuthStatus").textContent = `已登录学号：${studentId}`;
       document.getElementById("quizLoginNotice").textContent = `当前登录学号：${studentId}。可以开始课前/课后测试。`;
@@ -3448,7 +3448,7 @@
     }
 
     function restoreStudentLogin() {
-      const saved = localStorage.getItem("gxmu_kq_student_id");
+      const saved = localStorage.getItem("mucosa_student_id");
       if (saved) {
         state.studentId = saved;
         state.studentLoggedIn = true;
@@ -3927,7 +3927,7 @@
         answer_details: state.answers.map((a, i) => ({ index: i + 1, step: steps[a.step] || "训练步骤", answer: a.text, score: a.score, strengths: a.strengths || [], issues: a.issues || [], suggestion: a.suggestion || "" })),
         source: c.source || "AI 生成",
         case_source: state.currentFlow === "flow_5" ? `口腔医学知识库 - ${c.id}` : (c.source || "AI 生成"),
-        school: "广西医科大学口腔学院",
+        school: "口腔黏膜病学教学平台",
         kg_nodes: steps.slice(0, state.step + 1)
       });
       setRecords(records);
@@ -4771,7 +4771,7 @@
         answer_details: state.quizAnswers,
         source: quizSource,
         case_source: quizSource,
-        school: "广西医科大学口腔学院"
+        school: "口腔黏膜病学教学平台"
       });
       setRecords(records);
       box.innerHTML = renderLearningReport(report);
@@ -4950,10 +4950,10 @@
     function seedDemoData() {
       const records = getRecords();
       records.unshift(
-        { time: nowText(), student: "2026KQ001", type: "训练", caseId: "GXMU-KQ-KB-LP-001", accuracy: 86, weak: "鉴别诊断、辅助检查选择", train_difficulty: "初级", difficulty: "初级", summary: "主诉解析较完整，鉴别诊断漏答慢性盘状红斑狼疮。", source: "口腔医学知识库 - 扁平苔藓临床病例", school: "广西医科大学口腔学院" },
-        { time: nowText(), student: "2026KQ002", type: "课前测试", caseId: "斑纹类疾病随机题组", accuracy: 68, weak: "癌前病变与癌前状态、白斑癌变风险", train_difficulty: "基础-中等", summary: "问答题关键词覆盖不足。", source: "斑纹类疾病课程题库", school: "广西医科大学口腔学院" },
-        { time: nowText(), student: "2026KQ003", type: "训练", caseId: "AI-中级-口腔白斑", accuracy: 74, weak: "现病史采集、口腔检查设计、患者教育", train_difficulty: "中级", difficulty: "中级", summary: "检查项目能列出，但目的说明不足，随访安排较笼统。", source: "AI 生成", school: "广西医科大学口腔学院" },
-        { time: nowText(), student: "2026KQ004", type: "课后测试", caseId: "斑纹类疾病随机题组", accuracy: 91, weak: "暂无明显薄弱项", train_difficulty: "基础-中等", summary: "选择题和问答题要点覆盖较完整。", source: "斑纹类疾病课程题库", school: "广西医科大学口腔学院" }
+        { time: nowText(), student: "2026KQ001", type: "训练", caseId: "KB-OLP-001", accuracy: 86, weak: "鉴别诊断、辅助检查选择", train_difficulty: "初级", difficulty: "初级", summary: "主诉解析较完整，鉴别诊断漏答慢性盘状红斑狼疮。", source: "口腔医学知识库 - 扁平苔藓临床病例", school: "口腔黏膜病学教学平台" },
+        { time: nowText(), student: "2026KQ002", type: "课前测试", caseId: "斑纹类疾病随机题组", accuracy: 68, weak: "癌前病变与癌前状态、白斑癌变风险", train_difficulty: "基础-中等", summary: "问答题关键词覆盖不足。", source: "斑纹类疾病课程题库", school: "口腔黏膜病学教学平台" },
+        { time: nowText(), student: "2026KQ003", type: "训练", caseId: "AI-中级-口腔白斑", accuracy: 74, weak: "现病史采集、口腔检查设计、患者教育", train_difficulty: "中级", difficulty: "中级", summary: "检查项目能列出，但目的说明不足，随访安排较笼统。", source: "AI 生成", school: "口腔黏膜病学教学平台" },
+        { time: nowText(), student: "2026KQ004", type: "课后测试", caseId: "斑纹类疾病随机题组", accuracy: 91, weak: "暂无明显薄弱项", train_difficulty: "基础-中等", summary: "选择题和问答题要点覆盖较完整。", source: "斑纹类疾病课程题库", school: "口腔黏膜病学教学平台" }
       );
       setRecords(records);
       refreshMetrics();
