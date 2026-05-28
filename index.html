@@ -4694,7 +4694,18 @@
       const trainingDetails = Array.isArray(record.answer_details) ? record.answer_details : [];
       const quizDetails = record.report?.answerDetails || [];
       if (quizDetails.length) {
-        return quizDetails.map((a, i) => '<div class="question-review ' + (Number(a.score) >= 80 ? "correct" : "wrong") + '"><b>第 ' + (i + 1) + ' 题</b><p>' + esc(a.q) + '</p><p>学生答案：' + esc(a.answer) + '</p><p>参考答案：' + esc(a.correctAnswer || "见解析") + '</p><p>得分：' + esc(a.score) + '</p><p>解析：' + esc(a.explanation || a.feedback || "") + '</p></div>').join("");
+        return quizDetails.map((a, i) => {
+          const optionsHtml = a.options?.length
+            ? '<ol class="answer-options" type="A">' + a.options.map((op, idx) => {
+                const cls = idx === a.correctIndex ? "correct-option" : idx === a.selectedIndex && idx !== a.correctIndex ? "picked-wrong" : "";
+                const note = idx === a.correctIndex ? "（正确答案）" : idx === a.selectedIndex ? "（学生选择）" : "";
+                return '<li class="' + cls + '">' + esc(op) + ' ' + note + '</li>';
+              }).join("") + '</ol>'
+            : "";
+          const studentAnswer = a.type === "choice" ? formatChoiceAnswer(a.options, a.selectedIndex, a.answer) : a.answer;
+          const correctAnswer = a.type === "choice" ? formatChoiceAnswer(a.options, a.correctIndex, a.correctAnswer) : a.correctAnswer;
+          return '<div class="question-review ' + (Number(a.score) >= 80 ? "correct" : "wrong") + '"><b>第 ' + (i + 1) + ' 题</b><p>' + esc(a.q) + '</p>' + optionsHtml + '<p>学生答案：' + esc(studentAnswer) + '</p><p>参考答案：' + esc(correctAnswer || "见解析") + '</p><p>得分：' + esc(a.score) + '</p><p>解析：' + esc(a.explanation || a.feedback || "") + '</p><p class="tag">来源：' + esc(a.source || record.source || "课程题库") + '</p></div>';
+        }).join("");
       }
       if (trainingDetails.length) {
         return trainingDetails.map(a => '<div class="question-review ' + (Number(a.score || 0) >= 80 ? "correct" : "wrong") + '"><b>' + esc(a.step || ("第 " + a.index + " 步")) + '</b><p>学生回答：' + esc(a.answer || "") + '</p><p>得分：' + esc(a.score ?? "未评分") + '</p><p>评价：' + esc((a.strengths || []).length ? "已覆盖：" + (a.strengths || []).join("、") : "覆盖不足") + '</p><p>错误/缺失：' + esc((a.issues || []).join("；") || "暂无明显错误") + '</p><p>改进建议：' + esc(a.suggestion || "继续补充临床依据和安全边界。") + '</p></div>').join("");
