@@ -3933,7 +3933,7 @@
       if (hit.length < rules.requiredHits) score = Math.min(score, 68);
       if (clean.length < rules.minLen) score = Math.min(score, 55);
       if (hit.length === 0) score = Math.min(score, clean.length ? 15 : 0);
-      if (qualityIssue) score = Math.min(score, 15);
+      if (qualityIssue) score = 0;
       score = Math.max(0, Math.min(100, Math.round(score)));
 
       const enough = score >= rules.passScore && !qualityIssue && severeIssues.length === 0 && hit.length >= rules.requiredHits && clean.length >= rules.minLen;
