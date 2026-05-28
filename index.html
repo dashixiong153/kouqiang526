@@ -1072,8 +1072,8 @@
                   </div>
                 </div>
                 <div class="voice-controls">
-                  <button class="icon-btn" id="voiceInputBtn" type="button" title="语音输入">🎙 语音输入</button>
-                  <button class="icon-btn" id="voiceConfirmBtn" type="button" title="确认语音内容" disabled>✓ 确认发送</button>
+                  <button class="icon-btn" id="voiceInputBtn" type="button" title="系统语音输入">🎙 系统语音输入</button>
+                  <button class="icon-btn" id="voiceConfirmBtn" type="button" title="校正并发送">✓ 校正并发送</button>
                   <button class="icon-btn" id="voiceReadBtn" type="button" title="朗读助手回复">🔊 朗读回复</button>
                   <button class="icon-btn" id="stopVoiceBtn" type="button" title="停止语音">■ 停止</button>
                   <select class="voice-select" id="voiceSelect" aria-label="选择朗读音色">
@@ -1081,7 +1081,7 @@
                   </select>
                   <label class="voice-toggle">
                     <input id="voiceAutoSubmit" type="checkbox" checked />
-                    确认后自动发送
+                    校正后自动发送
                   </label>
                   <div class="voice-transcript" id="voiceTranscript" aria-live="polite">
                     点击“语音输入”后开始说话，识别内容会先显示在这里。
@@ -3509,7 +3509,7 @@
         "service-not-allowed": "浏览器语音服务不可用，可切换 Chrome 或 Edge 后重试。",
         "no-speech": "没有听清内容，请靠近麦克风，用普通语速再说一次。",
         "audio-capture": "未检测到可用麦克风，请检查设备输入。",
-        "network": "语音识别网络服务暂时不可用，可先改用文字输入。",
+        "network": "浏览器识别不可用，建议改用系统语音输入或文字输入。",
         "aborted": "语音输入已取消。"
       };
       return messages[error] || "语音识别失败，请重试或改用文字输入。";
@@ -3621,10 +3621,16 @@
       const lang = (voice.lang || "").toLowerCase();
       let score = 0;
       if (lang.includes("zh") || name.includes("chinese") || name.includes("mandarin")) score += 50;
-      if (name.includes("male") || name.includes("man") || name.includes("yunxi") || name.includes("yunyang") || name.includes("xiaogang") || name.includes("kangkang") || name.includes("liang")) score += 35;
+      if (isYunxiVoice(voice)) score += 120;
+      if (name.includes("male") || name.includes("man") || name.includes("yunyang") || name.includes("xiaogang") || name.includes("kangkang") || name.includes("liang")) score += 35;
       if (name.includes("natural") || name.includes("neural") || name.includes("online")) score += 10;
       if (voice.localService) score += 3;
       return score;
+    }
+
+    function isYunxiVoice(voice) {
+      const name = `${voice?.name || ""} ${voice?.voiceURI || ""}`.toLowerCase();
+      return name.includes("yunxi") || name.includes("云希");
     }
 
     function selectPreferredVoice() {
@@ -3634,6 +3640,8 @@
         const selected = voices.find(v => v.name === state.preferredVoiceName);
         if (selected) return selected;
       }
+      const yunxi = voices.find(isYunxiVoice);
+      if (yunxi) return yunxi;
       return [...voices].sort((a, b) => scoreVoice(b) - scoreVoice(a))[0];
     }
 
@@ -3642,11 +3650,12 @@
       const voices = getVoices();
       const zhVoices = voices.filter(v => (v.lang || "").toLowerCase().includes("zh") || /chinese|mandarin/i.test(v.name));
       const list = zhVoices.length ? zhVoices : voices;
-      voiceSelect.innerHTML = `<option value="">自动选择中文男声</option>` + list
+      voiceSelect.innerHTML = `<option value="">默认云希中文男声</option>` + list
         .sort((a, b) => scoreVoice(b) - scoreVoice(a))
         .map(v => `<option value="${esc(v.name)}">${esc(v.name)}（${esc(v.lang || "未知语言")}）</option>`)
         .join("");
-      voiceSelect.value = state.preferredVoiceName || "";
+      const yunxi = list.find(isYunxiVoice);
+      voiceSelect.value = state.preferredVoiceName || yunxi?.name || "";
     }
 
     function splitSpeechText(text) {
@@ -3691,8 +3700,6 @@
     }
 
     function initVoice() {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      const voiceInputBtn = document.getElementById("voiceInputBtn");
       const voiceReadBtn = document.getElementById("voiceReadBtn");
       const canSpeak = "speechSynthesis" in window;
       if (canSpeak) {
@@ -3702,92 +3709,11 @@
         voiceReadBtn.disabled = true;
         voiceSelect.disabled = true;
       }
-      const needsSecureContext = location.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(location.hostname);
-      if (!SpeechRecognition) {
-        voiceInputBtn.disabled = true;
-        setVoiceStatus(canSpeak ? "当前浏览器不支持语音输入" : "当前浏览器不支持语音功能");
-        setVoiceTranscript("语音输入建议使用最新版 Chrome 或 Edge；当前仍可使用文字输入继续训练。");
-        return;
-      }
-      if (needsSecureContext) {
-        voiceInputBtn.disabled = true;
-        setVoiceStatus("语音输入需要 HTTPS 或 localhost 环境");
-        setVoiceTranscript("已保留文字输入。发布到 HTTPS 页面后，可正常启用麦克风语音识别。");
-        return;
-      }
-      recognition = new SpeechRecognition();
-      recognition.lang = "zh-CN";
-      recognition.interimResults = true;
-      recognition.continuous = false;
-      recognition.maxAlternatives = 1;
-      recognition.onstart = () => {
-        state.recognizing = true;
-        state.voiceHadResult = false;
-        voiceInputBtn.classList.add("active");
-        voiceConfirmBtn.disabled = false;
-        setVoiceStatus("正在分段聆听，停顿后会自动转写并继续听", "listening");
-        setVoiceTranscript(state.voiceDraftText || "正在聆听中……每次自然停顿后会先转成文字，完成后请点击“确认发送”。", true);
-        armVoiceWatchdog();
-      };
-      recognition.onresult = event => {
-        armVoiceWatchdog();
-        let finalText = "";
-        let interimText = "";
-        for (let i = event.resultIndex; i < event.results.length; i += 1) {
-          const text = event.results[i][0]?.transcript || "";
-          if (event.results[i].isFinal) finalText += text;
-          else interimText += text;
-        }
-        if (interimText.trim()) updateVoiceInterimPreview(interimText.trim());
-        if (finalText.trim()) {
-          state.voiceNetworkRetries = 0;
-          state.voiceHadResult = true;
-          appendVoiceDraft(finalText.trim());
-          armVoiceWatchdog();
-        }
-      };
-      recognition.onerror = event => {
-        const criticalErrors = ["not-allowed", "service-not-allowed", "audio-capture"];
-        if (criticalErrors.includes(event.error)) state.voiceSessionActive = false;
-        state.voiceHadResult = event.error !== "no-speech";
-        const message = getVoiceErrorMessage(event.error);
-        if (state.voiceSessionActive && event.error === "no-speech") {
-          setVoiceStatus("暂时没有听清，请继续说；完成后点“确认发送”", "listening");
-          return;
-        }
-        if (state.voiceSessionActive && event.error === "aborted") {
-          setVoiceStatus("语音识别通道已重启，正在继续聆听", "listening");
-          return;
-        }
-        if (state.voiceSessionActive && event.error === "network" && state.voiceNetworkRetries < 2) {
-          state.voiceNetworkRetries += 1;
-          setVoiceStatus("语音网络服务波动，正在自动重试 " + state.voiceNetworkRetries + "/2", "listening");
-          setVoiceTranscript(input.value.trim() || "语音网络服务短暂波动，正在自动重试。");
-          return;
-        }
-        if (event.error === "network") state.voiceSessionActive = false;
-        setVoiceStatus(message);
-        setVoiceTranscript(message);
-      };
-      recognition.onend = () => {
-        state.recognizing = false;
-        voiceInputBtn.classList.remove("active");
-        avatarWrap.classList.remove("listening");
-        window.clearTimeout(voiceWatchdogTimer);
-        if (state.voiceSessionActive) {
-          setVoiceStatus(state.voiceDraftText ? "已转写当前片段，正在继续聆听" : "语音引擎短暂停顿，正在继续聆听", "listening");
-          window.clearTimeout(voiceRestartTimer);
-          voiceRestartTimer = window.setTimeout(() => {
-            if (!state.voiceSessionActive) return;
-            try { recognition.start(); } catch (e) { setVoiceStatus("语音输入正在恢复，请稍后继续说"); }
-          }, 420);
-          return;
-        }
-        if (!state.voiceHadResult && !state.lastVoiceText) {
-          setVoiceStatus("语音待机");
-          setVoiceTranscript("没有捕捉到清晰语音。可以再点一次语音输入，或直接在下方输入文字。");
-        }
-      };
+      recognition = null;
+      voiceConfirmBtn.disabled = false;
+      input.placeholder = "可直接输入，或点击“系统语音输入”后使用 Windows Win+H / 手机键盘麦克风输入";
+      setVoiceStatus("系统语音输入模式");
+      setVoiceTranscript("已关闭浏览器在线语音识别。点击“系统语音输入”后，使用设备自带语音输入；页面会在发送前做口腔术语校正。");
     }
 
     function normalizeVoiceCommand(text) {
@@ -5403,7 +5329,7 @@
 
     document.getElementById("chatForm").addEventListener("submit", e => {
       e.preventDefault();
-      const text = input.value.trim();
+      const text = normalizeVoiceCommand(normalizeDentalSpeechText(input.value.trim()));
       if (!text) return;
       input.value = "";
       handleStudentSubmit(text);
@@ -5432,44 +5358,29 @@
     caseImageInput.addEventListener("change", () => handleCaseImageUpload(caseImageInput.files));
 
     document.getElementById("voiceInputBtn").addEventListener("click", () => {
-      if (!recognition) {
-        setVoiceStatus("当前环境暂不支持语音输入");
-        setVoiceTranscript("请使用最新版 Chrome 或 Edge，并确保页面运行在 HTTPS 或 localhost 环境。");
-        return;
-      }
-      if (state.recognizing) {
-        setVoiceStatus("正在分段聆听，完成后请点“确认发送”", "listening");
-        return;
-      }
-      try {
-        clearVoiceTimers();
-        state.voiceSessionActive = true;
-        state.voiceDraftText = "";
-        state.voiceInterimText = "";
-        state.lastVoiceText = "";
-        state.voiceNetworkRetries = 0;
-        voiceConfirmBtn.disabled = false;
-        recognition.start();
-      } catch (e) {
-        setVoiceStatus("语音输入正在准备，请稍后再试");
-      }
+      clearVoiceTimers();
+      state.voiceSessionActive = false;
+      state.recognizing = false;
+      input.focus();
+      voiceConfirmBtn.disabled = false;
+      setVoiceStatus("已聚焦输入框，请启用系统语音输入");
+      setVoiceTranscript("Windows 可按 Win + H 开始听写；手机或平板可点键盘麦克风。说完后可先修改文字，再点“校正并发送”。");
     });
 
     voiceAutoSubmit.addEventListener("change", () => {
       state.voiceAutoSubmit = voiceAutoSubmit.checked;
-      setVoiceStatus(state.voiceAutoSubmit ? "已开启确认后自动发送" : "已切换为确认后先填入输入框");
-      setVoiceTranscript(state.voiceAutoSubmit ? "语音会持续记录，点击“确认发送”后再提交。" : "语音会持续记录，点击确认后只填入输入框，方便修改。");
+      setVoiceStatus(state.voiceAutoSubmit ? "已开启校正后自动发送" : "已切换为只校正不发送");
+      setVoiceTranscript(state.voiceAutoSubmit ? "点击“校正并发送”后会先做术语校正，再提交。" : "点击“校正并发送”后只校正输入框内容，方便继续修改。");
     });
 
     voiceConfirmBtn.addEventListener("click", () => {
       const draft = input.value.trim() || state.voiceDraftText.trim();
       state.voiceSessionActive = false;
       clearVoiceTimers();
-      if (recognition && state.recognizing) recognition.stop();
-      voiceConfirmBtn.disabled = true;
       if (!draft) {
-        setVoiceStatus("尚未识别到可提交内容");
-        setVoiceTranscript("请重新点击“语音输入”，完整说完后再确认。");
+        input.focus();
+        setVoiceStatus("输入框暂无内容");
+        setVoiceTranscript("请先使用系统语音输入或文字输入，再进行术语校正。");
         return;
       }
       submitRecognizedText(draft);
@@ -5493,11 +5404,10 @@
     document.getElementById("stopVoiceBtn").addEventListener("click", () => {
       state.voiceSessionActive = false;
       clearVoiceTimers();
-      if (recognition && state.recognizing) recognition.stop();
+      state.recognizing = false;
       if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-      voiceConfirmBtn.disabled = true;
       setVoiceStatus("语音已停止");
-      setVoiceTranscript("语音输入或朗读已停止，可继续文字作答或再次点击语音输入。");
+      setVoiceTranscript("已停止朗读并退出语音提示，可继续使用文字或系统语音输入。");
     });
 
     document.getElementById("teacherLoginBtn").addEventListener("click", () => {
