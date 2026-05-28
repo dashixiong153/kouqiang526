@@ -4010,15 +4010,17 @@
         ? item.options.map(x => String(x || "").trim()).filter(Boolean)
         : ["A", "B", "C", "D", "E", "选项A", "选项B", "选项C", "选项D", "选项E"].map(key => item[key]).filter(x => String(x || "").trim()).map(String);
       const answerRaw = item.answer ?? item.correct ?? item.correctAnswer ?? item["正确答案"] ?? item["答案"];
-      const answer = parseAnswerIndex(answerRaw, options);
+      let answer = parseAnswerIndex(answerRaw, options);
+      if (Number.isNaN(answer)) answer = inferUploadedAnswerIndex(q, options);
       if (!q || options.length < 2 || Number.isNaN(answer)) return null;
+      const rawWeak = item.weak || item["知识点"] || item["薄弱模块"] || "";
       return {
         q,
         options,
         answer,
         source: item.source || item["来源"] || "教师上传题库",
-        weak: item.weak || item["知识点"] || item["薄弱模块"] || "教师上传题目",
-        explanation: item.explanation || item.analysis || item["答案解析"] || item["解析"] || "",
+        weak: rawWeak && rawWeak !== "教师上传题目" ? rawWeak : (inferUploadedWeak(q) || "教师上传题目"),
+        explanation: item.explanation || item.analysis || item["答案解析"] || item["解析"] || buildInferredExplanation(q, options, answer),
         type: "choice"
       };
     }
@@ -4124,6 +4126,46 @@
       if (byText >= 0) return byText;
       const num = Number(raw);
       return Number.isFinite(num) ? (num >= 1 ? num - 1 : num) : Number.NaN;
+    }
+
+    function findOptionIndex(options, patterns) {
+      return options.findIndex(option => patterns.some(pattern => pattern.test(option)));
+    }
+
+    function inferUploadedAnswerIndex(question, options = []) {
+      const q = String(question || "");
+      const rules = [
+        { q: /扁平苔藓|OLP/, hint: /好发人群|多见|高发/, options: [/中年女性/] },
+        { q: /扁平苔藓|OLP/, hint: /最常见.*部位|好发部位|发病部位/, options: [/颊黏膜|颊粘膜/] },
+        { q: /扁平苔藓|OLP/, hint: /典型病损|典型表现|损害表现/, options: [/珠光.*白色.*网状|白色.*网状|Wickham/] },
+        { q: /苔藓样损害/, hint: /不包括|除外|不是/, options: [/感染性/] },
+        { q: /WHO|世界卫生组织/, hint: /扁平苔藓|OLP|列为/, options: [/口腔潜在恶性疾患|潜在恶性|癌前状态/] },
+        { q: /白斑/, hint: /癌变|恶变|危险|高危/, options: [/溃疡|硬结|皲裂|非均质|舌腹|口底|活检/] },
+        { q: /盘状红斑狼疮|红斑狼疮/, hint: /诱因|加重|相关/, options: [/日光|紫外/] },
+        { q: /黏膜下纤维|粘膜下纤维/, hint: /病因|相关|诱因/, options: [/槟榔/] }
+      ];
+      for (const rule of rules) {
+        if (rule.q.test(q) && rule.hint.test(q)) {
+          const idx = findOptionIndex(options, rule.options);
+          if (idx >= 0) return idx;
+        }
+      }
+      return Number.NaN;
+    }
+
+    function inferUploadedWeak(question) {
+      const q = String(question || "");
+      if (/扁平苔藓|OLP/.test(q)) return "口腔扁平苔藓";
+      if (/苔藓样损害|苔藓样反应/.test(q)) return "苔藓样损害";
+      if (/白斑/.test(q)) return "口腔白斑";
+      if (/红斑狼疮/.test(q)) return "盘状红斑狼疮";
+      if (/黏膜下纤维|粘膜下纤维/.test(q)) return "口腔黏膜下纤维变性";
+      return "";
+    }
+
+    function buildInferredExplanation(question, options, answer) {
+      if (!Number.isFinite(answer) || !options?.[answer]) return "";
+      return "该题未在上传文件中提供答案，系统根据口腔黏膜病课程知识点自动匹配参考答案：" + optionLetter(answer) + "（" + options[answer] + "）。建议教师在上传题库中补充“答案：”和“解析：”字段，以便生成更完整的学情报告。";
     }
 
     function normalizeOfficeText(text) {
