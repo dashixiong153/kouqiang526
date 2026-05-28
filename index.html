@@ -384,6 +384,43 @@
       background: #fff;
     }
 
+    .voice-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid #cce8e4;
+      border-radius: 999px;
+      background: #f4fffd;
+      color: var(--brand-deep);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 7px 10px;
+      user-select: none;
+    }
+
+    .voice-toggle input {
+      accent-color: var(--brand);
+    }
+
+    .voice-transcript {
+      width: 100%;
+      min-height: 52px;
+      border: 1px dashed #bddbd7;
+      border-radius: 8px;
+      background: #f8fffd;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+      padding: 10px 12px;
+    }
+
+    .voice-transcript.active {
+      border-style: solid;
+      border-color: var(--brand);
+      background: #effdf9;
+      color: var(--ink);
+    }
+
     .icon-btn {
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -1041,6 +1078,13 @@
                   <select class="voice-select" id="voiceSelect" aria-label="选择朗读音色">
                     <option value="">自动选择中文男声</option>
                   </select>
+                  <label class="voice-toggle">
+                    <input id="voiceAutoSubmit" type="checkbox" checked />
+                    识别后自动发送
+                  </label>
+                  <div class="voice-transcript" id="voiceTranscript" aria-live="polite">
+                    点击“语音输入”后开始说话，识别内容会先显示在这里。
+                  </div>
                 </div>
               </div>
               <div class="metric-grid">
@@ -3173,6 +3217,9 @@
       teacherLoggedIn: false,
       voiceReadEnabled: false,
       recognizing: false,
+      voiceAutoSubmit: true,
+      voiceHadResult: false,
+      lastVoiceText: "",
       preferredVoiceName: "",
       usedOriginalCaseKeys: [],
       answers: [],
@@ -3201,6 +3248,8 @@
     const avatarWrap = document.getElementById("avatarWrap");
     const voiceStatus = document.getElementById("voiceStatus");
     const voiceSelect = document.getElementById("voiceSelect");
+    const voiceTranscript = document.getElementById("voiceTranscript");
+    const voiceAutoSubmit = document.getElementById("voiceAutoSubmit");
     const caseImageInput = document.getElementById("caseImageInput");
     const uploadPreview = document.getElementById("uploadPreview");
     let recognition = null;
@@ -3441,6 +3490,43 @@
       avatarWrap.classList.toggle("speaking", mode === "speaking");
     }
 
+    function setVoiceTranscript(text, active = false) {
+      voiceTranscript.textContent = text;
+      voiceTranscript.classList.toggle("active", active);
+    }
+
+    function getVoiceErrorMessage(error) {
+      const messages = {
+        "not-allowed": "麦克风权限未开启，请允许浏览器使用麦克风后重试。",
+        "service-not-allowed": "浏览器语音服务不可用，可切换 Chrome 或 Edge 后重试。",
+        "no-speech": "没有听清内容，请靠近麦克风，用普通语速再说一次。",
+        "audio-capture": "未检测到可用麦克风，请检查设备输入。",
+        "network": "语音识别网络服务暂时不可用，可先改用文字输入。",
+        "aborted": "语音输入已取消。"
+      };
+      return messages[error] || "语音识别失败，请重试或改用文字输入。";
+    }
+
+    function submitRecognizedText(text) {
+      const command = normalizeVoiceCommand(text.trim());
+      input.value = command;
+      setVoiceTranscript(command, true);
+      if (!command) {
+        setVoiceStatus("没有识别到有效内容，请再试一次");
+        return;
+      }
+      if (state.voiceAutoSubmit) {
+        setVoiceStatus("已识别语音，正在发送");
+        window.setTimeout(() => {
+          input.value = "";
+          handleStudentSubmit(command);
+        }, 260);
+      } else {
+        input.focus();
+        setVoiceStatus("已填入输入框，可修改后点击发送");
+      }
+    }
+
     function cleanSpeechText(text) {
       return String(text)
         .replace(/[✅💡📝📍📚🎙🔊■]/g, "")
@@ -3541,35 +3627,64 @@
         voiceReadBtn.disabled = true;
         voiceSelect.disabled = true;
       }
+      const needsSecureContext = location.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(location.hostname);
       if (!SpeechRecognition) {
         voiceInputBtn.disabled = true;
         setVoiceStatus(canSpeak ? "当前浏览器不支持语音输入" : "当前浏览器不支持语音功能");
+        setVoiceTranscript("语音输入建议使用最新版 Chrome 或 Edge；当前仍可使用文字输入继续训练。");
+        return;
+      }
+      if (needsSecureContext) {
+        voiceInputBtn.disabled = true;
+        setVoiceStatus("语音输入需要 HTTPS 或 localhost 环境");
+        setVoiceTranscript("已保留文字输入。发布到 HTTPS 页面后，可正常启用麦克风语音识别。");
         return;
       }
       recognition = new SpeechRecognition();
       recognition.lang = "zh-CN";
-      recognition.interimResults = false;
+      recognition.interimResults = true;
       recognition.continuous = false;
+      recognition.maxAlternatives = 1;
       recognition.onstart = () => {
         state.recognizing = true;
+        state.voiceHadResult = false;
+        state.lastVoiceText = "";
         voiceInputBtn.classList.add("active");
         setVoiceStatus("正在聆听，请说出你的回答", "listening");
+        setVoiceTranscript("正在聆听中……可说“返回主菜单”“一”“二”等，也可以直接回答训练问题。", true);
       };
       recognition.onresult = event => {
-        const transcript = Array.from(event.results).map(r => r[0].transcript).join("");
-        const command = normalizeVoiceCommand(transcript.trim());
-        setVoiceStatus("已识别语音，正在提交");
-        input.value = command;
-        window.setTimeout(() => {
-          input.value = "";
-          handleStudentSubmit(command);
-        }, 200);
+        let finalText = "";
+        let interimText = "";
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const text = event.results[i][0]?.transcript || "";
+          if (event.results[i].isFinal) finalText += text;
+          else interimText += text;
+        }
+        const preview = (finalText || interimText).trim();
+        if (preview) setVoiceTranscript(preview, true);
+        if (finalText.trim()) {
+          state.voiceHadResult = true;
+          if (finalText.trim() !== state.lastVoiceText) {
+            state.lastVoiceText = finalText.trim();
+            submitRecognizedText(state.lastVoiceText);
+          }
+        }
       };
-      recognition.onerror = () => setVoiceStatus("语音识别失败，请重试或改用文字");
+      recognition.onerror = event => {
+        state.voiceHadResult = true;
+        const message = getVoiceErrorMessage(event.error);
+        setVoiceStatus(message);
+        setVoiceTranscript(message);
+      };
       recognition.onend = () => {
         state.recognizing = false;
         voiceInputBtn.classList.remove("active");
         avatarWrap.classList.remove("listening");
+        if (!state.voiceHadResult && !state.lastVoiceText) {
+          setVoiceStatus("语音待机");
+          setVoiceTranscript("没有捕捉到清晰语音。可以再点一次语音输入，或直接在下方输入文字。");
+        }
       };
     }
 
@@ -5194,7 +5309,8 @@
 
     document.getElementById("voiceInputBtn").addEventListener("click", () => {
       if (!recognition) {
-        setVoiceStatus("当前浏览器不支持语音输入");
+        setVoiceStatus("当前环境暂不支持语音输入");
+        setVoiceTranscript("请使用最新版 Chrome 或 Edge，并确保页面运行在 HTTPS 或 localhost 环境。");
         return;
       }
       if (state.recognizing) {
@@ -5206,6 +5322,12 @@
       } catch (e) {
         setVoiceStatus("语音输入正在准备，请稍后再试");
       }
+    });
+
+    voiceAutoSubmit.addEventListener("change", () => {
+      state.voiceAutoSubmit = voiceAutoSubmit.checked;
+      setVoiceStatus(state.voiceAutoSubmit ? "已开启识别后自动发送" : "已切换为先填入输入框");
+      setVoiceTranscript(state.voiceAutoSubmit ? "说完后系统会自动发送识别内容。" : "说完后内容会填入输入框，方便你先检查再发送。");
     });
 
     document.getElementById("voiceReadBtn").addEventListener("click", () => {
@@ -5227,6 +5349,7 @@
       if (recognition && state.recognizing) recognition.stop();
       if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       setVoiceStatus("语音已停止");
+      setVoiceTranscript("语音输入或朗读已停止，可继续文字作答或再次点击语音输入。");
     });
 
     document.getElementById("teacherLoginBtn").addEventListener("click", () => {
