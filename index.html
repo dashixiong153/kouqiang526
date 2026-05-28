@@ -1073,6 +1073,7 @@
                 </div>
                 <div class="voice-controls">
                   <button class="icon-btn" id="voiceInputBtn" type="button" title="语音输入">🎙 语音输入</button>
+                  <button class="icon-btn" id="voiceConfirmBtn" type="button" title="确认语音内容" disabled>✓ 确认发送</button>
                   <button class="icon-btn" id="voiceReadBtn" type="button" title="朗读助手回复">🔊 朗读回复</button>
                   <button class="icon-btn" id="stopVoiceBtn" type="button" title="停止语音">■ 停止</button>
                   <select class="voice-select" id="voiceSelect" aria-label="选择朗读音色">
@@ -1080,7 +1081,7 @@
                   </select>
                   <label class="voice-toggle">
                     <input id="voiceAutoSubmit" type="checkbox" checked />
-                    识别后自动发送
+                    确认后自动发送
                   </label>
                   <div class="voice-transcript" id="voiceTranscript" aria-live="polite">
                     点击“语音输入”后开始说话，识别内容会先显示在这里。
@@ -3220,6 +3221,8 @@
       voiceAutoSubmit: true,
       voiceHadResult: false,
       lastVoiceText: "",
+      voiceSessionActive: false,
+      voiceDraftText: "",
       preferredVoiceName: "",
       usedOriginalCaseKeys: [],
       answers: [],
@@ -3250,9 +3253,11 @@
     const voiceSelect = document.getElementById("voiceSelect");
     const voiceTranscript = document.getElementById("voiceTranscript");
     const voiceAutoSubmit = document.getElementById("voiceAutoSubmit");
+    const voiceConfirmBtn = document.getElementById("voiceConfirmBtn");
     const caseImageInput = document.getElementById("caseImageInput");
     const uploadPreview = document.getElementById("uploadPreview");
     let recognition = null;
+    let voiceRestartTimer = null;
     let uploadedImageUrls = [];
 
     function storeKey() { return "mucosa_ai_records_v1"; }
@@ -3507,8 +3512,44 @@
       return messages[error] || "语音识别失败，请重试或改用文字输入。";
     }
 
+    function normalizeDentalSpeechText(text) {
+      let value = String(text || "").trim();
+      const replacements = [
+        [/朴素|仆诉|朴诉|主速|主素|竹素/g, "主诉"],
+        [/年膜|黏莫|粘膜|脸膜|连膜/g, "黏膜"],
+        [/口枪|口强|口腔科/g, "口腔"],
+        [/牙引|牙银/g, "牙龈"],
+        [/白文|白问|白闻/g, "白纹"],
+        [/白班|白般/g, "白斑"],
+        [/红班|红般/g, "红斑"],
+        [/糜乱|迷烂|糜烂面/g, "糜烂"],
+        [/舔部|蛇部/g, "舌部"],
+        [/夹黏膜|假黏膜|颊粘膜/g, "颊黏膜"],
+        [/扁平太鲜|扁平苔鲜|扁平台藓|扁平苔癣/g, "扁平苔藓"],
+        [/苔鲜样|苔癣样/g, "苔藓样"],
+        [/活捡|活检验/g, "活检"],
+        [/病里|病例切片/g, "病理"],
+        [/随房|随访问/g, "随访"]
+      ];
+      replacements.forEach(([pattern, target]) => {
+        value = value.replace(pattern, target);
+      });
+      return value.replace(/\s+/g, "");
+    }
+
+    function appendVoiceDraft(text) {
+      const corrected = normalizeDentalSpeechText(text);
+      if (!corrected || corrected === state.lastVoiceText) return;
+      state.lastVoiceText = corrected;
+      const prefix = state.voiceDraftText ? state.voiceDraftText.replace(/[，。；;、\s]*$/, "，") : "";
+      state.voiceDraftText = prefix + corrected;
+      input.value = state.voiceDraftText;
+      setVoiceTranscript(state.voiceDraftText, true);
+      setVoiceStatus("已记录语音片段，可继续说；完成后点“确认发送”", "listening");
+    }
+
     function submitRecognizedText(text) {
-      const command = normalizeVoiceCommand(text.trim());
+      const command = normalizeVoiceCommand(normalizeDentalSpeechText(text));
       input.value = command;
       setVoiceTranscript(command, true);
       if (!command) {
@@ -3516,7 +3557,7 @@
         return;
       }
       if (state.voiceAutoSubmit) {
-        setVoiceStatus("已识别语音，正在发送");
+        setVoiceStatus("已确认语音，正在发送");
         window.setTimeout(() => {
           input.value = "";
           handleStudentSubmit(command);
@@ -3643,15 +3684,15 @@
       recognition = new SpeechRecognition();
       recognition.lang = "zh-CN";
       recognition.interimResults = true;
-      recognition.continuous = false;
+      recognition.continuous = true;
       recognition.maxAlternatives = 1;
       recognition.onstart = () => {
         state.recognizing = true;
         state.voiceHadResult = false;
-        state.lastVoiceText = "";
         voiceInputBtn.classList.add("active");
-        setVoiceStatus("正在聆听，请说出你的回答", "listening");
-        setVoiceTranscript("正在聆听中……可说“返回主菜单”“一”“二”等，也可以直接回答训练问题。", true);
+        voiceConfirmBtn.disabled = false;
+        setVoiceStatus("正在持续聆听，完成后请点“确认发送”", "listening");
+        setVoiceTranscript(state.voiceDraftText || "正在聆听中……系统会持续记录语音，完成后请点击“确认发送”。", true);
       };
       recognition.onresult = event => {
         let finalText = "";
@@ -3661,19 +3702,22 @@
           if (event.results[i].isFinal) finalText += text;
           else interimText += text;
         }
-        const preview = (finalText || interimText).trim();
-        if (preview) setVoiceTranscript(preview, true);
+        const preview = normalizeDentalSpeechText(interimText.trim());
+        if (preview) setVoiceTranscript((state.voiceDraftText ? state.voiceDraftText + "，" : "") + preview, true);
         if (finalText.trim()) {
           state.voiceHadResult = true;
-          if (finalText.trim() !== state.lastVoiceText) {
-            state.lastVoiceText = finalText.trim();
-            submitRecognizedText(state.lastVoiceText);
-          }
+          appendVoiceDraft(finalText.trim());
         }
       };
       recognition.onerror = event => {
-        state.voiceHadResult = true;
+        const criticalErrors = ["not-allowed", "service-not-allowed", "audio-capture"];
+        if (criticalErrors.includes(event.error)) state.voiceSessionActive = false;
+        state.voiceHadResult = event.error !== "no-speech";
         const message = getVoiceErrorMessage(event.error);
+        if (state.voiceSessionActive && event.error === "no-speech") {
+          setVoiceStatus("暂时没有听清，请继续说；完成后点“确认发送”", "listening");
+          return;
+        }
         setVoiceStatus(message);
         setVoiceTranscript(message);
       };
@@ -3681,6 +3725,14 @@
         state.recognizing = false;
         voiceInputBtn.classList.remove("active");
         avatarWrap.classList.remove("listening");
+        if (state.voiceSessionActive) {
+          setVoiceStatus("语音引擎短暂停顿，正在继续聆听", "listening");
+          window.clearTimeout(voiceRestartTimer);
+          voiceRestartTimer = window.setTimeout(() => {
+            try { recognition.start(); } catch (e) { setVoiceStatus("语音输入正在恢复，请稍后继续说"); }
+          }, 240);
+          return;
+        }
         if (!state.voiceHadResult && !state.lastVoiceText) {
           setVoiceStatus("语音待机");
           setVoiceTranscript("没有捕捉到清晰语音。可以再点一次语音输入，或直接在下方输入文字。");
@@ -5336,10 +5388,15 @@
         return;
       }
       if (state.recognizing) {
-        recognition.stop();
+        setVoiceStatus("正在持续聆听，完成后请点“确认发送”", "listening");
         return;
       }
       try {
+        window.clearTimeout(voiceRestartTimer);
+        state.voiceSessionActive = true;
+        state.voiceDraftText = "";
+        state.lastVoiceText = "";
+        voiceConfirmBtn.disabled = false;
         recognition.start();
       } catch (e) {
         setVoiceStatus("语音输入正在准备，请稍后再试");
@@ -5348,8 +5405,22 @@
 
     voiceAutoSubmit.addEventListener("change", () => {
       state.voiceAutoSubmit = voiceAutoSubmit.checked;
-      setVoiceStatus(state.voiceAutoSubmit ? "已开启识别后自动发送" : "已切换为先填入输入框");
-      setVoiceTranscript(state.voiceAutoSubmit ? "说完后系统会自动发送识别内容。" : "说完后内容会填入输入框，方便你先检查再发送。");
+      setVoiceStatus(state.voiceAutoSubmit ? "已开启确认后自动发送" : "已切换为确认后先填入输入框");
+      setVoiceTranscript(state.voiceAutoSubmit ? "语音会持续记录，点击“确认发送”后再提交。" : "语音会持续记录，点击确认后只填入输入框，方便修改。");
+    });
+
+    voiceConfirmBtn.addEventListener("click", () => {
+      const draft = input.value.trim() || state.voiceDraftText.trim();
+      state.voiceSessionActive = false;
+      window.clearTimeout(voiceRestartTimer);
+      if (recognition && state.recognizing) recognition.stop();
+      voiceConfirmBtn.disabled = true;
+      if (!draft) {
+        setVoiceStatus("尚未识别到可提交内容");
+        setVoiceTranscript("请重新点击“语音输入”，完整说完后再确认。");
+        return;
+      }
+      submitRecognizedText(draft);
     });
 
     document.getElementById("voiceReadBtn").addEventListener("click", () => {
@@ -5368,8 +5439,11 @@
     });
 
     document.getElementById("stopVoiceBtn").addEventListener("click", () => {
+      state.voiceSessionActive = false;
+      window.clearTimeout(voiceRestartTimer);
       if (recognition && state.recognizing) recognition.stop();
       if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      voiceConfirmBtn.disabled = true;
       setVoiceStatus("语音已停止");
       setVoiceTranscript("语音输入或朗读已停止，可继续文字作答或再次点击语音输入。");
     });
