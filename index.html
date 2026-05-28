@@ -3223,6 +3223,8 @@
       lastVoiceText: "",
       voiceSessionActive: false,
       voiceDraftText: "",
+      voiceInterimText: "",
+      voiceNetworkRetries: 0,
       preferredVoiceName: "",
       usedOriginalCaseKeys: [],
       answers: [],
@@ -3258,6 +3260,7 @@
     const uploadPreview = document.getElementById("uploadPreview");
     let recognition = null;
     let voiceRestartTimer = null;
+    let voiceWatchdogTimer = null;
     let uploadedImageUrls = [];
 
     function storeKey() { return "mucosa_ai_records_v1"; }
@@ -3543,9 +3546,40 @@
       state.lastVoiceText = corrected;
       const prefix = state.voiceDraftText ? state.voiceDraftText.replace(/[，。；;、\s]*$/, "，") : "";
       state.voiceDraftText = prefix + corrected;
+      state.voiceInterimText = "";
       input.value = state.voiceDraftText;
       setVoiceTranscript(state.voiceDraftText, true);
       setVoiceStatus("已记录语音片段，可继续说；完成后点“确认发送”", "listening");
+    }
+
+    function updateVoiceInterimPreview(text) {
+      const corrected = normalizeDentalSpeechText(text);
+      state.voiceInterimText = corrected;
+      const preview = [state.voiceDraftText, corrected].filter(Boolean).join(state.voiceDraftText && corrected ? "，" : "");
+      if (preview) {
+        input.value = preview;
+        setVoiceTranscript(preview, true);
+      }
+    }
+
+    function clearVoiceTimers() {
+      window.clearTimeout(voiceRestartTimer);
+      window.clearTimeout(voiceWatchdogTimer);
+    }
+
+    function armVoiceWatchdog() {
+      window.clearTimeout(voiceWatchdogTimer);
+      if (!state.voiceSessionActive || !recognition) return;
+      voiceWatchdogTimer = window.setTimeout(() => {
+        if (!state.voiceSessionActive || !state.recognizing) return;
+        setVoiceStatus("长时间未返回文字，正在重启语音识别", "listening");
+        setVoiceTranscript(input.value.trim() || "语音服务响应较慢，正在自动重启识别通道。");
+        try {
+          recognition.abort();
+        } catch (e) {
+          try { recognition.stop(); } catch (err) {}
+        }
+      }, 8000);
     }
 
     function submitRecognizedText(text) {
@@ -3693,8 +3727,10 @@
         voiceConfirmBtn.disabled = false;
         setVoiceStatus("正在分段聆听，停顿后会自动转写并继续听", "listening");
         setVoiceTranscript(state.voiceDraftText || "正在聆听中……每次自然停顿后会先转成文字，完成后请点击“确认发送”。", true);
+        armVoiceWatchdog();
       };
       recognition.onresult = event => {
+        armVoiceWatchdog();
         let finalText = "";
         let interimText = "";
         for (let i = event.resultIndex; i < event.results.length; i += 1) {
@@ -3702,11 +3738,12 @@
           if (event.results[i].isFinal) finalText += text;
           else interimText += text;
         }
-        const preview = normalizeDentalSpeechText(interimText.trim());
-        if (preview) setVoiceTranscript((state.voiceDraftText ? state.voiceDraftText + "，" : "") + preview, true);
+        if (interimText.trim()) updateVoiceInterimPreview(interimText.trim());
         if (finalText.trim()) {
+          state.voiceNetworkRetries = 0;
           state.voiceHadResult = true;
           appendVoiceDraft(finalText.trim());
+          armVoiceWatchdog();
         }
       };
       recognition.onerror = event => {
@@ -3718,6 +3755,17 @@
           setVoiceStatus("暂时没有听清，请继续说；完成后点“确认发送”", "listening");
           return;
         }
+        if (state.voiceSessionActive && event.error === "aborted") {
+          setVoiceStatus("语音识别通道已重启，正在继续聆听", "listening");
+          return;
+        }
+        if (state.voiceSessionActive && event.error === "network" && state.voiceNetworkRetries < 2) {
+          state.voiceNetworkRetries += 1;
+          setVoiceStatus("语音网络服务波动，正在自动重试 " + state.voiceNetworkRetries + "/2", "listening");
+          setVoiceTranscript(input.value.trim() || "语音网络服务短暂波动，正在自动重试。");
+          return;
+        }
+        if (event.error === "network") state.voiceSessionActive = false;
         setVoiceStatus(message);
         setVoiceTranscript(message);
       };
@@ -3725,6 +3773,7 @@
         state.recognizing = false;
         voiceInputBtn.classList.remove("active");
         avatarWrap.classList.remove("listening");
+        window.clearTimeout(voiceWatchdogTimer);
         if (state.voiceSessionActive) {
           setVoiceStatus(state.voiceDraftText ? "已转写当前片段，正在继续聆听" : "语音引擎短暂停顿，正在继续聆听", "listening");
           window.clearTimeout(voiceRestartTimer);
@@ -5393,10 +5442,12 @@
         return;
       }
       try {
-        window.clearTimeout(voiceRestartTimer);
+        clearVoiceTimers();
         state.voiceSessionActive = true;
         state.voiceDraftText = "";
+        state.voiceInterimText = "";
         state.lastVoiceText = "";
+        state.voiceNetworkRetries = 0;
         voiceConfirmBtn.disabled = false;
         recognition.start();
       } catch (e) {
@@ -5413,7 +5464,7 @@
     voiceConfirmBtn.addEventListener("click", () => {
       const draft = input.value.trim() || state.voiceDraftText.trim();
       state.voiceSessionActive = false;
-      window.clearTimeout(voiceRestartTimer);
+      clearVoiceTimers();
       if (recognition && state.recognizing) recognition.stop();
       voiceConfirmBtn.disabled = true;
       if (!draft) {
@@ -5441,7 +5492,7 @@
 
     document.getElementById("stopVoiceBtn").addEventListener("click", () => {
       state.voiceSessionActive = false;
-      window.clearTimeout(voiceRestartTimer);
+      clearVoiceTimers();
       if (recognition && state.recognizing) recognition.stop();
       if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       voiceConfirmBtn.disabled = true;
